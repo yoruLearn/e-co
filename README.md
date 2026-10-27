@@ -189,7 +189,26 @@ RUN_LOCAL_EMBED=1 uv run pytest tests/integration/test_llm_live.py -q -k fastemb
 - M0 验收记录：[docs/m0/03-verification.md](docs/m0/03-verification.md)
 - M1 方案与进度：[docs/m1/01-plan.md](docs/m1/01-plan.md) · [docs/m1/02-tickets.md](docs/m1/02-tickets.md)
 
-## 8. 常见问题
+## 8. RAG 索引与检索（M1）
+
+```bash
+# 离线检索：内存索引，不依赖 MySQL/Chroma；embedding 走当前配置（fastembed 时是真实语义分）
+uv run python -m app.rag.cli query "退款多久到账" --offline
+uv run python -m app.rag.cli query "退货运费谁承担" --offline --json
+
+# 在线：构建索引（写 Chroma + rag_chunk 并激活版本），再检索
+uv run python -m app.rag.cli rebuild --version v1
+uv run python -m app.rag.cli query "退款多久到账" --version v1
+uv run python -m app.rag.cli versions
+```
+
+输出包含三档判定（`answer` / `answer_with_caveat` / `fallback`）、Top-K 的 `vector_score`、
+`keyword_score`、出处（doc/section）与降级原因。**离线模式只验证管道，不代表检索质量**。
+
+语料在 `seeds/corpus/`（示例语料，M4 替换真实文档）；分块规则 500 字 / 80 overlap、
+按 `##`/`###` 标题切节；`rag_chunk` 由迁移 0002 建立，关键词通道用 MySQL `FULLTEXT ... WITH PARSER ngram`。
+
+## 9. 常见问题
 
 | 现象 | 原因 | 处置 |
 | --- | --- | --- |

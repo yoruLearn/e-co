@@ -101,6 +101,7 @@ ignore = [
 "tests/**" = ["S101", "ANN", "ARG", "S105", "S106", "PLR2004"]
 "app/migrations/env.py" = ["ANN", "E402", "T20"]
 "app/api/routers/*.py" = ["ARG001"]   # M0 契约占位：参数由框架注入，实现留待 M1/M2
+"app/rag/cli.py" = ["T201"]           # CLI 输出即产品行为
 "scripts/**" = ["ANN", "T20"]
 
 [tool.ruff.lint.isort]

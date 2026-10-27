@@ -2,6 +2,57 @@
 
 > 逐迭代留痕：做了什么、跑了什么、数字是多少、哪些是"假绿"必须排除。
 
+## 迭代 I1 · 第 3 天（2026-10-27）：M1-03/04 索引管道 + 混合召回
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `ruff check .` / `ruff format --check .` | ✅ 109 文件 |
+| 2 | `mypy app`（strict） | ✅ 67 source files |
+| 3 | `pytest -q --cov=app` | ✅ **377 passed, 9 skipped，覆盖率 86.12%** |
+| 4 | `pytest tests/integration/test_retrieval_quality.py`（真实 embedding） | ✅ 6 passed（16.5s） |
+| 5 | `python -m app.rag.cli query "退款多久到账" --offline` | ✅ `band=answer top1=0.8142`，Top1=`售后政策总则 / 退款时效` |
+
+### 本轮实现
+
+| 模块 | 内容 |
+| --- | --- |
+| `app/rag/chroma.py` | Chroma **REST** 客户端（create/upsert/query/delete/heartbeat）+ 测试用 `InMemoryVectorIndex`；不引 chromadb 客户端 |
+| `app/rag/keyword.py` | 关键词通道协议 + `MysqlKeywordIndex`（ngram MATCH）+ `MemoryBM25KeywordIndex`（单测/离线）+ 分数归一化 |
+| `app/rag/pipeline.py` | `HybridRetriever`：双通道 → RRF Top10 → Rerank Top5 → 三档判定；降级链（向量挂→关键词；全挂→兜底）；`NoopReranker` / `LlmReranker` |
+| `app/rag/indexer.py` | 文档 → 分块 → 32/批向量化 → Chroma upsert → 覆盖写 `rag_chunk` → `index_version` building/active/deprecated；`activate()` 支持回切 |
+| `app/rag/cli.py` | `rebuild` / `query --offline` / `query --online` / `versions`，支持 `--json` |
+
+### 真实 embedding 检索抽样（bge-small-zh，5 条问句）
+
+| 问句 | Top2 覆盖 | 判定 |
+| --- | --- | --- |
+| 退款多久能到账 | 退款、工作日 | 通过 |
+| 七天无理由从哪天开始算 | 七、签收 | 通过 |
+| 退货运费谁承担 | 运费 | 通过 |
+| 发票可以重开吗 | 发票 | 通过 |
+| 耳机保修多久 | 保修 | 通过 |
+
+> 这是 **抽样冒烟**，不是完成率；完整 90 条评测在 M1-10。
+
+### 本轮修掉的问题
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | RRF 名次靠前但向量分更低的资料排在上面，导致三档判定用的 top1 与最佳证据不一致 | `NoopReranker` 改为"RRF 决定候选、向量分决定顺序"，并补回归用例 |
+| 2 | `logger.info(..., extra={"name": ...})` 触发 `KeyError: Attempt to overwrite 'name'` | 改用 `log_event`（key 名不与 LogRecord 保留字段冲突） |
+| 3 | BM25 的 `normalize_for_keyword` 未去尾部空格/未折叠空格 | 统一 `strip + 折叠`，补断言 |
+| 4 | `EmptyKeywordIndex` 的空实现参数触发 ARG002 | 每个参数行显式 noqa 并注明"保持协议签名" |
+
+### 本轮的"未验证"（不许算绿）
+
+| 项 | 原因 | 何时补 |
+| --- | --- | --- |
+| `Indexer.build` 对真实 MySQL + Chroma 的端到端 | 本机 Docker daemon 未运行 | 下一轮起栈后跑 `rebuild` + `query`；CI 已有 MySQL，Chroma 服务待加 |
+| MySQL ngram 中文召回效果 | 同上（未连真实库） | 同上一行；离线用 BM25 已验证排序逻辑 |
+| 检索 P95 ≤1.2s | 未接真实 Chroma + 真实 embedding 计时 | 索引联调后压测 |
+
+---
+
 ## 迭代 I1 · 第 2 天（2026-10-27）：M1-02 语料 + 分块 + 迁移
 
 | # | 命令 | 结果 |
