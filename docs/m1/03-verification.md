@@ -2,6 +2,62 @@
 
 > 逐迭代留痕：做了什么、跑了什么、数字是多少、哪些是"假绿"必须排除。
 
+## 迭代 I2 · 第 5 天（2026-10-27）：M1-06 图装配 + M1-07 流式 SSE
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `ruff check .` / `ruff format --check .` | ✅ 129 文件 |
+| 2 | `mypy app`（strict） | ✅ 76 source files |
+| 3 | `pytest -q --cov=app` | ✅ **439 passed, 10 skipped，覆盖率 85.30%** |
+| 4 | `pytest tests/integration/test_chat_stream.py` | ✅ 8 例（事件顺序/引用/脱敏/无引用拦截/四类意图） |
+| 5 | `pytest tests/unit/test_agent_nodes.py tests/unit/test_streaming_redactor.py` | ✅ 21 例 |
+
+### 图结构（M1 问答链路）
+
+```text
+START → router ─qa→ rewrite → retrieve ─高置信→ answer → sse_out → END
+            │                       └低置信→ clarify → sse_out
+            ├query/after_sales→ pending_capability（M2 接工具）→ sse_out
+            └chitchat→ reject → sse_out
+```
+
+| 节点 | 行为 | 失败策略 |
+| --- | --- | --- |
+| `router` | LLM 结构化 JSON（2s 超时）→ 解析失败/超时用**规则兜底** | 记 `degraded=router:*`，继续 |
+| `rewrite` | 有历史才改写成独立 query（3s） | 回退原句 |
+| `retrieve` | 混合召回 + 三档判定（1.2s+） | 异常 → band=fallback |
+| `answer` | 流式生成 + `[[n]]` 引用事件 + 句子级脱敏 + 无引用拦截 | LLM 异常 → error 事件 + 兜底话术 |
+| `clarify`/`reject`/`pending` | 确定性话术（不调模型，零成本、可评测） | — |
+
+### SSE 协议落地
+
+| 项 | 结果 |
+| --- | --- |
+| 事件 | `status` / `delta` / `citation` / `clarify` / `error` / `done`（`confirm`/`tool` 留 M2） |
+| 帧序号 | 每帧 `id: <seq>`，测试断言连续无跳号 |
+| 引用 | 模型输出 `[[1]]` 时**实时**发 `citation`（含 doc_id/title/section/snippet/score） |
+| 脱敏 | 句子级切分后打码：手机号 `138****5678`、身份证、银行卡、邮箱；**号码跨 chunk 不会泄露半截** |
+| 无引用拦截 | 有检索结果但答案无 `[[n]]` → 替换为兜底话术 + `clarify` 事件 + `answer_without_citation_total` 指标 |
+| 记忆 | 回答完成后写 `sess:{id}`（窗口 10 轮）；Redis 不可用时降级为无记忆 |
+
+### 本轮修掉的问题
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | `PromptRegistry` 的 DB 源在无数据库时抛 `OperationalError`，把整图打断 | `get()` 对每个 source 做异常隔离 → 记 `prompt.source.failed` 并回落到 seed |
+| 2 | LangGraph serde 警告 `Intent`/`AfterSalesStatus` 未注册（未来版本会拒绝反序列化） | 状态里 `intent`/`status` 改存**字符串**，枚举只在边界转换 |
+| 3 | SSE 测试消息选错（"我的退款到哪了"是 query 意图，走 pending 分支） | 用 qa 消息覆盖检索兜底路径，另加 pending 分支单测 |
+
+### 本轮的"未验证"（不许算绿）
+
+| 项 | 原因 | 何时补 |
+| --- | --- | --- |
+| `Last-Event-ID` 断线续传 | 帧缓冲与回放未实现（I2 收尾） | 下一轮 |
+| 首 token P95 ≤800ms | 真实网关推理模型首正文 ~2.2s，仅缓存命中可达成；且未接缓存 | M1-09 后压测 |
+| 真实模型下的四类意图准确率 | 需 90 条评测集 | M1-10 |
+
+---
+
 ## 迭代 I1/I2 交界 · 第 4 天（2026-10-27）：M1-00 spike + M1-05 Prompt 层
 
 | # | 命令 | 结果 |

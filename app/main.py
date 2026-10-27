@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 from prometheus_client import make_asgi_app
 
+from app.agent.runtime import build_agent_runtime, init_agent_runtime
 from app.api.handlers import register_exception_handlers
 from app.api.middleware import MetricsMiddleware, TraceMiddleware
 from app.api.routers import API_ROUTERS
@@ -80,6 +81,8 @@ def _build_lifespan(settings: Settings) -> Any:
                 "docs_enabled": settings.docs_enabled,
             },
         )
+        # Redis checkpointer 初始化失败会降级为内存（不影响启动，见 init_agent_runtime）
+        await init_agent_runtime(app.state.agent)
         try:
             yield
         finally:
@@ -90,6 +93,7 @@ def _build_lifespan(settings: Settings) -> Any:
                     extra={"seconds": settings.shutdown_drain_seconds},
                 )
                 await asyncio.sleep(settings.shutdown_drain_seconds)
+            await app.state.agent.close()
             await clients.aclose()
             logger.info("app.shutdown")
 
@@ -120,6 +124,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.clients = clients
     app.state.readiness = readiness
+    app.state.agent = build_agent_runtime(settings, clients)
     app.state.started_at = time.time()
 
     register_exception_handlers(app)

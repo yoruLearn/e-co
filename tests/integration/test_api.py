@@ -240,7 +240,7 @@ def test_chat_stream_emits_sse_frames(client: TestClient, buyer_auth: dict[str, 
     with client.stream(
         "POST",
         "/api/v1/chat/stream",
-        json={"session_id": "sess_1", "message": "我的退款到哪了"},
+        json={"session_id": "sess_1", "message": "退款多久到账"},
         headers=buyer_auth,
     ) as response:
         assert response.status_code == 200
@@ -255,11 +255,14 @@ def test_chat_stream_emits_sse_frames(client: TestClient, buyer_auth: dict[str, 
         for line in frame.splitlines()
         if line.startswith("event: ")
     ]
-    assert events == ["error", "done"]
-    error_payload = json.loads(frames[0].split("data: ", 1)[1])
-    assert error_payload["code"] == "AS-5002"
-    done_payload = json.loads(frames[1].split("data: ", 1)[1])
+    # 离线（无 Chroma/MySQL/LLM 录制）时应走：router 规则兜底 → 检索兜底 → 澄清 → done
+    assert events[0] == "status"
+    assert "delta" in events
+    assert "clarify" in events
+    assert events[-1] == "done"
+    done_payload = json.loads(frames[-1].split("data: ", 1)[1])
     assert done_payload["trace_id"]
+    assert all(frame.splitlines()[0].startswith("id: ") for frame in frames)
 
 
 def test_unhandled_exception_is_masked(

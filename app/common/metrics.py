@@ -59,6 +59,10 @@ IDEM_HIT = Counter("idem_hit_total", "幂等命中（重复提交拦截）次数
 
 TRANSITION_ILLEGAL = Counter("transition_illegal_total", "状态机非法迁移次数（应为 0）")
 
+ANSWER_WITHOUT_CITATION = Counter(
+    "answer_without_citation_total", "知识回答未携带引用而被拦截的次数（应为 0）"
+)
+
 OUTBOX_PENDING = Gauge("outbox_pending", "outbox 待投递消息数")
 
 DLQ_TOTAL = Counter("dlq_total", "死信数量", ["topic"])

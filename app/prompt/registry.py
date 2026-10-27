@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.errors import AppError, ErrorCode
 from app.common.config import Settings
-from app.common.logging import get_logger, log_event
+from app.common.logging import get_logger, log_event, log_warning
 from app.db.models import PromptRegistry as PromptRegistryRow
 
 logger = get_logger("app.prompt.registry")
@@ -168,7 +168,17 @@ class PromptRegistry:
             return cached.template
 
         for source in self._sources:
-            template = await source.load(str(key), version)
+            try:
+                template = await source.load(str(key), version)
+            except Exception as exc:
+                log_warning(
+                    logger,
+                    "prompt.source.failed",
+                    source=source.name,
+                    prompt_key=str(key),
+                    reason=type(exc).__name__,
+                )
+                continue
             if template is not None:
                 self._cache[cache_key] = _CacheEntry(template=template, expires_at=now + self._ttl)
                 log_event(

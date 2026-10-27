@@ -43,6 +43,7 @@ def settings() -> Settings:
         shutdown_drain_seconds=0,
         mq_enabled=False,
         docs_enabled=True,
+        rag_offline=True,
     )
 
 

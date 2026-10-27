@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from app.agent.graph import MAX_CITATIONS, MAX_NODE_CALLS, MAX_TOOL_RESULTS, NODE_NAMES
 from app.agent.state import AfterSalesState, Citation, Intent, ToolResult, initial_state
-from app.services.state_machine import AfterSalesStatus
 
 
 def test_initial_state_has_all_spec_fields() -> None:
@@ -13,12 +12,19 @@ def test_initial_state_has_all_spec_fields() -> None:
         "trace_id",
         "session_id",
         "user_id",
+        "user_query",
+        "history",
         "intent",
+        "router_confidence",
         "rewritten_query",
         "slots",
         "missing_slots",
         "tool_results",
         "citations",
+        "context_blocks",
+        "band",
+        "degraded",
+        "index_version",
         "biz_id",
         "action",
         "status",
@@ -26,11 +32,12 @@ def test_initial_state_has_all_spec_fields() -> None:
         "confirm_required",
         "approval_task_id",
         "answer_stream",
+        "usage_tokens",
         "error",
     }
     assert set(state) == expected_keys
     assert state["version"] == 0
-    assert state["status"] is AfterSalesStatus.DRAFT
+    assert state["status"] == "DRAFT"
     assert state["confirm_required"] is False
     assert state["trace_id"] == "tr_0123456789abcdef"
 
@@ -58,5 +65,5 @@ def test_graph_contract_constants() -> None:
 
 
 def test_state_is_typed_dict_compatible() -> None:
-    state: AfterSalesState = {"trace_id": "tr_x", "intent": Intent.QA}
-    assert state["intent"] is Intent.QA
+    state: AfterSalesState = {"trace_id": "tr_x", "intent": Intent.QA.value}
+    assert state["intent"] == "qa"

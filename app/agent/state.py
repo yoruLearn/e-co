@@ -11,7 +11,6 @@ from typing import Literal, TypedDict
 from pydantic import BaseModel, Field
 
 from app.api.errors import ErrorCode
-from app.services.state_machine import AfterSalesStatus
 
 
 class Intent(StrEnum):
@@ -52,40 +51,63 @@ class AfterSalesState(TypedDict, total=False):
     trace_id: str
     session_id: str
     user_id: str
-    intent: Intent
+    user_query: str
+    history: list[dict[str, str]]
+    intent: str
+    router_confidence: float
     rewritten_query: str | None
     slots: dict[str, object]
     missing_slots: list[str]
     tool_results: list[ToolResult]
     citations: list[Citation]
+    context_blocks: list[str]
+    band: str
+    degraded: list[str]
+    index_version: str
     biz_id: str | None
     action: Literal["refund", "return", "exchange"] | None
-    status: AfterSalesStatus
+    status: str
     version: int
     confirm_required: bool
     approval_task_id: str | None
     answer_stream: str
+    usage_tokens: int
     error: ErrorInfo | None
 
 
-def initial_state(*, trace_id: str, session_id: str, user_id: str) -> AfterSalesState:
+def initial_state(
+    *,
+    trace_id: str,
+    session_id: str,
+    user_id: str,
+    user_query: str = "",
+    history: list[dict[str, str]] | None = None,
+) -> AfterSalesState:
     """新建会话的初始状态；``version=0`` 与 DB 乐观锁初值一致。"""
     return AfterSalesState(
         trace_id=trace_id,
         session_id=session_id,
         user_id=user_id,
-        intent=Intent.QA,
+        user_query=user_query,
+        history=list(history or []),
+        intent=Intent.QA.value,
+        router_confidence=0.0,
         rewritten_query=None,
         slots={},
         missing_slots=[],
         tool_results=[],
         citations=[],
+        context_blocks=[],
+        band="",
+        degraded=[],
+        index_version="",
         biz_id=None,
         action=None,
-        status=AfterSalesStatus.DRAFT,
+        status="DRAFT",
         version=0,
         confirm_required=False,
         approval_task_id=None,
         answer_stream="",
+        usage_tokens=0,
         error=None,
     )
