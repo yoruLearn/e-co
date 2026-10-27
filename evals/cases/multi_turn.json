@@ -1,0 +1,49 @@
+[
+  {
+    "case_key": "multi-turn-001",
+    "category": "multi_turn",
+    "input": {
+      "query": "那这一单呢",
+      "history": [
+        {"role": "user", "content": "我的耳机订单能退吗"},
+        {"role": "assistant", "content": "请提供订单号或确认是否为最近一笔订单"}
+      ]
+    },
+    "expectation": {
+      "intent": "query",
+      "rewrite_required": true,
+      "must_resolve_reference": true
+    }
+  },
+  {
+    "case_key": "multi-turn-002",
+    "category": "multi_turn",
+    "input": {
+      "query": "要退",
+      "history": [
+        {"role": "user", "content": "你想退款还是换货"},
+        {"role": "assistant", "content": "请确认处理方式"}
+      ]
+    },
+    "expectation": {
+      "intent": "after_sales",
+      "requires_confirm": true,
+      "action": "refund"
+    }
+  },
+  {
+    "case_key": "multi-turn-003",
+    "category": "multi_turn",
+    "input": {
+      "query": "对，就是质量问题",
+      "history": [
+        {"role": "user", "content": "我想退货"},
+        {"role": "assistant", "content": "请问退货原因是什么"}
+      ]
+    },
+    "expectation": {
+      "intent": "after_sales",
+      "slot_filled": "reason"
+    }
+  }
+]

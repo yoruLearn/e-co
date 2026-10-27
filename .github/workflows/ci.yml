@@ -1,0 +1,143 @@
+name: ci
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  quality:
+    name: lint / type / test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.x"
+          enable-cache: true
+
+      - name: install python + deps
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv sync --extra dev
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format check
+        run: uv run ruff format --check .
+
+      - name: mypy
+        run: uv run mypy app
+
+      - name: pytest + coverage gate
+        run: uv run pytest -q --cov=app --cov-report=term-missing --cov-report=xml
+
+      - name: upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  smoke:
+    name: process smoke（探针 / metrics / trace）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.x"
+          enable-cache: true
+      - run: uv sync --extra dev
+      # 不依赖 MySQL/Redis：缺依赖时 /readyz 必须 503 且给出逐项明细
+      - run: uv run python scripts/smoke.py
+
+  compose:
+    name: compose config + image build + trivy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: compose config
+        run: docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example config -q
+
+      - name: build api image
+        run: docker build -f deploy/Dockerfile -t aftersales-agent:ci .
+
+      - name: trivy scan（CRITICAL 阻断，忽略未修复）
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: aftersales-agent:ci
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL
+
+  migration:
+    name: alembic upgrade / downgrade（MySQL 8.0）
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: aftersales
+          MYSQL_USER: aftersales
+          MYSQL_PASSWORD: aftersales
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      APP_ENV: dev
+      DATABASE_URL: mysql+aiomysql://aftersales:aftersales@127.0.0.1:3306/aftersales?charset=utf8mb4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.x"
+          enable-cache: true
+      - run: uv sync --extra dev
+
+      - name: upgrade head
+        run: uv run alembic upgrade head
+
+      - name: verify 9 tables exist
+        run: |
+          uv run python - <<'PY'
+          import asyncio
+          from sqlalchemy import text
+          from app.common.clients import build_clients
+          from app.common.config import get_settings
+          from app.db.models import EXPECTED_TABLES
+
+          async def main() -> None:
+              clients = build_clients(get_settings())
+              async with clients.engine.connect() as conn:
+                  rows = await conn.execute(text("SHOW TABLES"))
+                  tables = {row[0] for row in rows}
+              await clients.aclose()
+              missing = set(EXPECTED_TABLES) - tables
+              assert not missing, f"缺少表: {missing}"
+              print(f"tables ok: {len(tables)}")
+
+          asyncio.run(main())
+          PY
+
+      - name: downgrade base（可回退性）
+        run: uv run alembic downgrade base

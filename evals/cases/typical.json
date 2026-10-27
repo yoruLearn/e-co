@@ -1,0 +1,41 @@
+[
+  {
+    "case_key": "typical-001",
+    "category": "typical",
+    "input": {
+      "query": "我的退款到哪了",
+      "history": []
+    },
+    "expectation": {
+      "intent": "query",
+      "must_cite": false,
+      "keywords": ["退款", "进度"]
+    }
+  },
+  {
+    "case_key": "typical-002",
+    "category": "typical",
+    "input": {
+      "query": "七天无理由退货怎么规定的",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "must_cite": true,
+      "keywords": ["七天", "无理由"]
+    }
+  },
+  {
+    "case_key": "typical-003",
+    "category": "typical",
+    "input": {
+      "query": "我要退上周买的蓝牙耳机，质量有问题",
+      "history": []
+    },
+    "expectation": {
+      "intent": "after_sales",
+      "action": "refund",
+      "requires_confirm": true
+    }
+  }
+]

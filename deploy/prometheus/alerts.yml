@@ -1,0 +1,73 @@
+# 告警规则（Spec §19.1 的 M0 子集；SLO 看板与值班触达在 M3 完成）
+groups:
+  - name: aftersales-slo
+    rules:
+      - alert: ApiErrorRateHigh
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_requests_total[5m])), 1)
+          > 0.01
+        for: 5m
+        labels:
+          severity: P1
+        annotations:
+          summary: "核心接口 5xx 率 > 1%（5min）"
+          runbook_url: "http://127.0.0.1:8080/docs/runbook.md#api-错误率"
+
+      - alert: ChatLatencyP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(chat_latency_seconds_bucket[5m])) by (le)
+          ) > 1.5
+        for: 10m
+        labels:
+          severity: P2
+        annotations:
+          summary: "对话端到端 P95 > 1.5s（Spec §15）"
+          runbook_url: "http://127.0.0.1:8080/docs/runbook.md#延迟恶化"
+
+      - alert: IllegalStateTransition
+        expr: increase(transition_illegal_total[5m]) > 0
+        labels:
+          severity: P1
+        annotations:
+          summary: "出现状态机非法迁移，必须立即冻结写链路取证"
+          runbook_url: "http://127.0.0.1:8080/docs/runbook.md#状态机非法迁移"
+
+      - alert: OutboxBacklog
+        expr: outbox_pending > 1000
+        for: 5m
+        labels:
+          severity: P2
+        annotations:
+          summary: "outbox 积压 > 1000 条"
+          runbook_url: "http://127.0.0.1:8080/docs/runbook.md#outbox-积压"
+
+      - alert: DeadLetterGrowing
+        expr: increase(dlq_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: P2
+        annotations:
+          summary: "死信队列增长"
+          runbook_url: "http://127.0.0.1:8080/docs/runbook.md#死信增长"
+
+      - alert: WriteBreakerOpen
+        expr: write_error_ratio > 0.5
+        for: 1m
+        labels:
+          severity: P2
+        annotations:
+          summary: "写链路错误率 > 50%，熔断应已打开"
+          runbook_url: "http://127.0.0.1:8080/docs/runbook.md#写链路熔断"
+
+      - alert: ApiDown
+        expr: up{job="aftersales-api"} == 0
+        for: 1m
+        labels:
+          severity: P1
+        annotations:
+          summary: "api 实例抓取失败（进程/探针异常）"
+          runbook_url: "http://127.0.0.1:8080/docs/runbook.md#api-不可用"

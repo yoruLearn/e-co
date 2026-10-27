@@ -1,0 +1,14 @@
+# M0：仅落盘告警状态，值班触达（钉钉/电话）在 M3 接入 §19.2 升级链路
+route:
+  receiver: default
+  group_by: ["alertname", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="P1"']
+      receiver: default
+      repeat_interval: 1h
+
+receivers:
+  - name: default

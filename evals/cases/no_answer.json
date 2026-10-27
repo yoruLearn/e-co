@@ -1,0 +1,39 @@
+[
+  {
+    "case_key": "no-answer-001",
+    "category": "no_answer",
+    "input": {
+      "query": "帮我写一首关于春天的诗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "chitchat",
+      "must_refuse": true
+    }
+  },
+  {
+    "case_key": "no-answer-002",
+    "category": "no_answer",
+    "input": {
+      "query": "你们公司明年会上市吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "chitchat",
+      "must_refuse": true,
+      "must_not_fabricate": true
+    }
+  },
+  {
+    "case_key": "no-answer-003",
+    "category": "no_answer",
+    "input": {
+      "query": "跨境订单被海关扣了怎么退",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "must_fallback": true
+    }
+  }
+]

@@ -1,0 +1,246 @@
+name: aftersales-agent
+
+# 一键起停：core（api/worker/mysql/redis/chroma/nginx）
+#   docker compose -f deploy/docker-compose.yml up -d --build
+# 含 MQ：  docker compose --profile mq up -d
+# 含观测：  docker compose --profile obs up -d
+# 生产拓扑（api/worker 双副本 + 托管的 MySQL/Redis/MQ）见 Spec §17.1，不在本文件范围内。
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: aftersales-agent:dev
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      RELEASE_CHANNEL: ${RELEASE_CHANNEL:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      DOCS_ENABLED: ${DOCS_ENABLED:-true}
+      DATABASE_URL: ${DATABASE_URL:-mysql+aiomysql://aftersales:aftersales@mysql:3306/aftersales?charset=utf8mb4}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CHROMA_URL: ${CHROMA_URL:-http://chroma:8000}
+      MQ_ENABLED: ${MQ_ENABLED:-false}
+      MQ_NAMESERVER: ${MQ_NAMESERVER:-rocketmq-namesrv:9876}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_HS256_SECRET: ${JWT_HS256_SECRET:-dev-only-insecure-hs256-secret-change-me}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-3600}
+      READY_TIMEOUT_MS: ${READY_TIMEOUT_MS:-2000}
+      SHUTDOWN_DRAIN_SECONDS: ${SHUTDOWN_DRAIN_SECONDS:-3}
+      APPROVAL_THRESHOLD_CNY: ${APPROVAL_THRESHOLD_CNY:-500}
+      GRAY_PERCENT: ${GRAY_PERCENT:-0}
+      RUN_MIGRATIONS: "1"
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/healthz || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: aftersales-agent:dev
+    command: ["python", "-m", "app.workers.runner"]
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      RELEASE_CHANNEL: ${RELEASE_CHANNEL:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      DATABASE_URL: ${DATABASE_URL:-mysql+aiomysql://aftersales:aftersales@mysql:3306/aftersales?charset=utf8mb4}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CHROMA_URL: ${CHROMA_URL:-http://chroma:8000}
+      MQ_ENABLED: ${MQ_ENABLED:-false}
+      MQ_NAMESERVER: ${MQ_NAMESERVER:-rocketmq-namesrv:9876}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_HS256_SECRET: ${JWT_HS256_SECRET:-dev-only-insecure-hs256-secret-change-me}
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'app.workers.runner' > /dev/null || exit 1"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --innodb-flush-log-at-trx-commit=1
+      - --max-connections=300
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-aftersales}
+      MYSQL_USER: ${MYSQL_USER:-aftersales}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-aftersales}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  chroma:
+    image: chromadb/chroma:0.5.20
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    ports:
+      - "${CHROMA_PORT:-8100}:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/v1/heartbeat')\" || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # ---------------- MQ（profile: mq，Spec §17.6） ----------------
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.3.1
+    profiles: ["mq"]
+    command: ["sh", "mqnamesrv"]
+    ports:
+      - "${MQ_NAMESRV_PORT:-9876}:9876"
+    volumes:
+      - rocketmq_namesrv_logs:/home/rocketmq/logs
+    restart: unless-stopped
+
+  rocketmq-broker:
+    image: apache/rocketmq:5.3.1
+    profiles: ["mq"]
+    command: ["sh", "mqbroker", "-n", "rocketmq-namesrv:9876", "--enable-proxy"]
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+    depends_on:
+      - rocketmq-namesrv
+    ports:
+      - "${MQ_BROKER_PORT:-10911}:10911"
+    volumes:
+      - rocketmq_broker_logs:/home/rocketmq/logs
+      - rocketmq_broker_store:/home/rocketmq/store
+    restart: unless-stopped
+
+  # ---------------- 可观测（profile: obs，M3 强化） ----------------
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["obs"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    profiles: ["obs"]
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    profiles: ["obs"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.2.1
+    profiles: ["obs"]
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  chroma_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  rocketmq_namesrv_logs:
+  rocketmq_broker_logs:
+  rocketmq_broker_store:

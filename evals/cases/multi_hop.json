@@ -1,0 +1,28 @@
+[
+  {
+    "case_key": "multi-hop-001",
+    "category": "multi_hop",
+    "input": {
+      "query": "耳机拆封了还能七天无理由退吗，运费谁出",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "must_cite": true,
+      "min_citations": 2
+    }
+  },
+  {
+    "case_key": "multi-hop-002",
+    "category": "multi_hop",
+    "input": {
+      "query": "换货的话库存不足怎么办，能改成退款吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "must_cite": true,
+      "keywords": ["换货", "退款"]
+    }
+  }
+]
