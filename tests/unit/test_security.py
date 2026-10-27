@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import jwt
 import pytest
 
@@ -152,3 +154,67 @@ def test_principal_role_helpers() -> None:
 
 def test_roles_match_spec() -> None:
     assert {role.value for role in Role} == {"buyer", "agent", "approver", "ops", "admin"}
+
+
+def test_rs256_roundtrip_with_generated_keypair(tmp_path: Path) -> None:
+    """生产形态（RS256 + 密钥文件）必须可用。
+
+    ``cryptography`` 是 PyJWT 的 RS256 后端依赖：缺它时这里会 ImportError。
+    该用例是"依赖漏装"的回归守卫（CI 首轮真实 MySQL 迁移亦因同一依赖缺失而失败）。
+    """
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("utf-8")
+    public_pem = (
+        private_key.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode("utf-8")
+    )
+
+    private_path = tmp_path / "jwt_priv.pem"
+    public_path = tmp_path / "jwt_pub.pem"
+    private_path.write_text(private_pem, encoding="utf-8")
+    public_path.write_text(public_pem, encoding="utf-8")
+
+    rs256_settings = Settings(
+        _env_file=None,
+        app_env="test",
+        jwt_algorithm="RS256",
+        jwt_public_key_path=str(public_path),
+        jwt_private_key_path=str(private_path),
+    )
+    token, _ = create_access_token(user_id="u_rs", role=Role.APPROVER, settings=rs256_settings)
+    principal = decode_access_token(token, rs256_settings)
+    assert principal == Principal(user_id="u_rs", role=Role.APPROVER)
+
+    # 用另一把密钥验签必须失败
+    other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    other_public = (
+        other_key.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode("utf-8")
+    )
+    other_path = tmp_path / "other_pub.pem"
+    other_path.write_text(other_public, encoding="utf-8")
+    with pytest.raises(AppError):
+        decode_access_token(
+            token,
+            Settings(
+                _env_file=None,
+                app_env="test",
+                jwt_algorithm="RS256",
+                jwt_public_key_path=str(other_path),
+            ),
+        )

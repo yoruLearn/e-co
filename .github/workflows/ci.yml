@@ -77,7 +77,7 @@ jobs:
         run: docker build -f deploy/Dockerfile -t aftersales-agent:ci .
 
       - name: trivy scan（CRITICAL 阻断，忽略未修复）
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: aftersales-agent:ci
           format: table

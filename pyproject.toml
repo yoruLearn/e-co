@@ -23,6 +23,8 @@ dependencies = [
   "prometheus-client>=0.21,<1",
   "PyJWT>=2.10,<3",
   "orjson>=3.10,<4",
+  # aiomysql 连接 MySQL 8 的 caching_sha2_password 需要；PyJWT 的 RS256 签名/验签同样需要
+  "cryptography>=43,<47",
 ]
 
 [project.optional-dependencies]
