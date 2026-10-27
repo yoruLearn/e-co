@@ -76,6 +76,30 @@ jobs:
       - name: build api image
         run: docker build -f deploy/Dockerfile -t aftersales-agent:ci .
 
+      # 容器级冒烟：/healthz 按设计不依赖任何外部组件，因此无需 MySQL/Redis 即可验证
+      # ENTRYPOINT、非 root 用户、HEALTHCHECK 与端口暴露是否正确。
+      - name: run container and probe /healthz
+        run: |
+          set -euo pipefail
+          docker run -d --name api-smoke -p 18000:8000 \
+            -e APP_ENV=dev -e LOG_FORMAT=json -e SHUTDOWN_DRAIN_SECONDS=0 \
+            aftersales-agent:ci
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:18000/healthz; then
+              echo
+              docker exec api-smoke python -m app.workers.runner --once
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "container did not become healthy, logs:"
+          docker logs api-smoke
+          exit 1
+
+      - name: stop smoke container
+        if: always()
+        run: docker rm -f api-smoke || true
+
       - name: trivy scan（CRITICAL 阻断，忽略未修复）
         uses: aquasecurity/trivy-action@v0.36.0
         with:

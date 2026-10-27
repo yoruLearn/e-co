@@ -3,8 +3,9 @@
 | 项 | 内容 |
 | --- | --- |
 | 验证日期 | 2026-10-27 |
-| 环境 | Windows 11 / Python 3.11.15（uv 管理）/ Docker CLI 29.8（**daemon 未启动**） |
-| 结论 | 静态门禁、单测、覆盖率、compose 校验、进程冒烟 **全部通过**；Docker 栈起停因本机 daemon 未运行未实测，已由 CI 覆盖（见 §4） |
+| 环境 | Windows 11 / Python 3.11.15（uv 管理）/ Docker CLI 29.8（**本机 daemon 未启动**） |
+| 远端 | GitHub Actions：<https://github.com/yoruLearn/e-co/actions> —— **run #3 全绿（4/4 jobs）** |
+| 结论 | 本地 11 项门禁 + 远端 4 个 CI job **全部通过**；真实 MySQL 8 迁移与镜像构建/trivy 扫描已在 CI 实测 |
 
 ---
 
@@ -12,10 +13,10 @@
 
 | # | 命令 | 结果 |
 | --- | --- | --- |
-| 1 | `ruff check .` | ✅ All checks passed（81 个文件） |
-| 2 | `ruff format --check .` | ✅ 81 files already formatted |
+| 1 | `ruff check .` | ✅ All checks passed（82 个文件） |
+| 2 | `ruff format --check .` | ✅ 82 files already formatted |
 | 3 | `mypy app`（strict） | ✅ Success: no issues found in 55 source files |
-| 4 | `pytest -q --cov=app` | ✅ **279 passed, 1 skipped**，覆盖率 **89.08%**（门禁 80%） |
+| 4 | `pytest -q --cov=app` | ✅ **280 passed, 1 skipped**，覆盖率 **89.46%**（门禁 80%） |
 | 5 | `docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example config -q` | ✅ exit 0 |
 | 6 | `python scripts/smoke.py` | ✅ `/healthz` 200、`/readyz` 503（逐项明细 5 项）、`/metrics` 200、trace 头透传 |
 | 7 | `python -m app.workers.runner --once` | ✅ exit 0（Redis 不可达时只告警，不崩溃） |
@@ -74,8 +75,8 @@ evals/cases/  四类用例 11 条（typical/multi_hop/no_answer/multi_turn）
 
 | 项 | 状态 | 原因 / 后续 |
 | --- | --- | --- |
-| Docker 栈实际起停（mysql/redis/chroma + api/worker + nginx） | ⚠️ 未实测 | 本机 Docker Desktop daemon 未运行（`up.ps1` 的 daemon 守卫已验证会明确报错）；`compose config` 通过，CI 的 `compose` + `migration` job 会构建镜像并在真实 MySQL 上跑迁移 |
-| 镜像构建与 trivy 扫描 | ⚠️ 未实测 | 同上；Dockerfile 为单阶段 python:3.11-slim-bookworm，CI 中执行 |
+| Docker 栈整体起停（mysql/redis/chroma + api/worker + nginx 同时在线） | ⚠️ 本机未实测 | 本机 Docker Desktop daemon 未运行（`up.ps1` 的 daemon 守卫已验证会明确报错）；CI 已实测「compose config + 镜像构建 + trivy + 真实 MySQL 迁移」，缺的只是多容器同栈联跑（M1 接 RAG 时补） |
+| 镜像构建与 trivy 扫描 | ✅ 已实测 | CI `compose` job：build 成功，trivy CRITICAL=0（ignore-unfixed） |
 | RocketMQ 协议接入 | ⛔ 计划 M2 | M0 仅做 NameServer TCP 探活，避免为无流量能力引入重依赖 |
 | 真实登录 / 用户中心 | ⛔ 计划 M4 | Spec 未定义用户源，不臆造；staging/prod 显式返回 501 |
 | `alembic check`（模型漂移自动检测） | ⏭ 计划 M1 | 先用"表集合三向比对"单测兜底；`alembic check` 需真实库，接入 CI 更合适 |
@@ -87,7 +88,7 @@ evals/cases/  四类用例 11 条（typical/multi_hop/no_answer/multi_turn）
 
 | 验收点 | 证据 |
 | --- | --- |
-| CI 绿灯 | 本地 9 项门禁全绿（§1），CI 工作流覆盖同等步骤 + 镜像/迁移 job |
+| CI 绿灯 | 本地 11 项门禁全绿（§1）；**GitHub Actions run #3 4/4 job 全绿**（§6） |
 | 一键起停 | `scripts/up.ps1`（daemon 检查 → 依赖健康 → 迁移 → 探针轮询 → 打印入口）/ `down.ps1`；`compose config` 校验通过 |
 | 工程脚手架 | 目录与 Spec §16.1 一致，55 个源文件，strict mypy |
 | compose | 9 个常驻服务 + mq/obs profile，健康检查与启动顺序齐备 |
@@ -96,12 +97,35 @@ evals/cases/  四类用例 11 条（typical/multi_hop/no_answer/multi_turn）
 
 ---
 
-## 6. 下一步迭代方案（M1 · 问答链路）
+## 6. CI 远端实跑记录（GitHub Actions）
+
+仓库：<https://github.com/yoruLearn/e-co>（public，默认分支 `main`，workflow：`.github/workflows/ci.yml`）
+
+| run | 触发动作 | 结果 | 关键信息 |
+| --- | --- | --- | --- |
+| #1 | 首次推送 | ❌ 2/4 job | quality / smoke 绿；compose+trivy、migration 失败 |
+| #2 | 修依赖 + trivy tag | ❌ 3/4 job | migration 转绿（真实 MySQL 8 upgrade/9 表/downgrade 全过）；镜像构建失败 |
+| #3 | 修 `.dockerignore` | ✅ **4/4 job** | quality / smoke / compose+trivy / migration 全绿 |
+
+### 6.1 首轮实跑抓到的真实缺陷（本地门禁抓不到的那一类）
+
+| # | 缺陷 | 为什么本地没发现 | 修复 |
+| --- | --- | --- | --- |
+| 1 | 缺 `cryptography` 依赖 | `aiomysql` 连 MySQL 8 默认认证 `caching_sha2_password` 时会抛 `cryptography is required ...`；本机无 MySQL，纯单测不会触发。同一依赖也是 PyJWT **RS256** 的签名后端（生产形态必用） | `pyproject.toml` 增加 `cryptography>=43,<47`；补 RS256 密钥对往返单测做回归守卫；`uv.lock` 重生成 |
+| 2 | `.dockerignore` 排除了 `README.md` | `pip install .` 需要 `pyproject.toml` 的 `readme = "README.md"`，Dockerfile 也 `COPY README.md`；镜像构建 7s 内失败 | `.dockerignore` 增加 `!README.md` 例外 |
+| 3 | trivy action tag 不存在（`0.28.0`） | 本地不跑 GitHub Actions，`uses:` 解析失败只在远端 "Set up job" 暴露 | 改为有效 tag `aquasecurity/trivy-action@v0.36.0` |
+
+> 结论：这三次失败恰好证明 M0 门禁分层是对的——静态检查与单测**无法替代"在真实依赖上跑一遍"**，
+> 因此 `compose`（镜像构建 + trivy）与 `migration`（真实 MySQL）两个 job 不是装饰，而是 M0 出口的必要条件。
+
+---
+
+## 7. 下一步迭代方案（M1 · 问答链路）
 
 **目标（出口标准）**：典型用例完成率 ≥ 85%、引用正确率 ≥ 95%、首 token P95 ≤ 800ms、端到端 P95 ≤ 1.5s
 （Spec §13.3 / §15 / §20 M1）。
 
-### 6.1 迭代范围
+### 7.1 迭代范围
 
 | ID | 任务 | 依据 | 交付物 | 验收 |
 | --- | --- | --- | --- | --- |
@@ -116,7 +140,7 @@ evals/cases/  四类用例 11 条（typical/multi_hop/no_answer/multi_turn）
 | M1-09 | 指标接线 | §13.2 | `chat_latency_seconds`、`rag_cache_hit_ratio`、`llm_tokens_total` 真实上报 + Grafana 看板 v1 | 看板可见四类核心曲线 |
 | M1-10 | 质量门禁与基线 | §16.3 | CI 增加评测抽样（可 mock LLM）、`pytest` 覆盖 RAG 关键路径 ≥ 85% | CI 绿灯 + 基线归档 |
 
-### 6.2 技术方案要点
+### 7.2 技术方案要点
 
 1. **Embedding/LLM 选型未定（Spec Q2）**：M1 先用可配置 provider + `LLM_MOCK` 录制回放跑通链路，staging 再对比选型，避免被供应商阻塞。
 2. **评测先行**：先补 90 条用例（含 20 条多轮、15 条无答案），再写图 —— 否则"完成率"无法验收。
@@ -124,7 +148,7 @@ evals/cases/  四类用例 11 条（typical/multi_hop/no_answer/multi_turn）
 4. **缓存与索引版本强绑定**：`rag:{ver}:{hash}`，索引激活时按前缀 DEL，杜绝旧索引结果（FR-CACHE-03）。
 5. **成本控制前置**：节点级调用上限（router/rewrite/answer 各 3 次）+ 上下文裁剪（tool_results 5 / citations 3）在 M1 就接线，不留到 M3。
 
-### 6.3 M1 风险与应对
+### 7.3 M1 风险与应对
 
 | 风险 | 应对 |
 | --- | --- |
@@ -133,7 +157,7 @@ evals/cases/  四类用例 11 条（typical/multi_hop/no_answer/multi_turn）
 | SSE 与 LangGraph 流式适配复杂 | 先在 M0 的 SSE 骨架上接假 token 流做契约测试，再接真图 |
 | 检索缓存命中率低 | 上线前用压测脚本量化 P95 与命中率，决定是否加本地 Caffeine 层 |
 
-### 6.4 建议节奏
+### 7.4 建议节奏
 
 | 周 | 内容 |
 | --- | --- |

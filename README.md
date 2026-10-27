@@ -1,5 +1,9 @@
 # 电商售后管家 · aftersales-agent
 
+[![ci](https://github.com/yoruLearn/e-co/actions/workflows/ci.yml/badge.svg)](https://github.com/yoruLearn/e-co/actions/workflows/ci.yml)
+
+仓库：<https://github.com/yoruLearn/e-co>
+
 对话式售后 Agent：把 **「问进度 → 答疑 → 发起退换货 → 审批 → 落库」** 收敛成一条对话流水线。
 知识问题走 RAG 引用作答，实时数据走只读工具，写操作走状态机 + HITL 双确认 + outbox/MQ 异步落库。
 
