@@ -2,6 +2,55 @@
 
 > 逐迭代留痕：做了什么、跑了什么、数字是多少、哪些是"假绿"必须排除。
 
+## 迭代 I1 · 第 2 天（2026-10-27）：M1-02 语料 + 分块 + 迁移
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `ruff check .` / `ruff format --check .` | ✅ 101 文件 |
+| 2 | `mypy app`（strict） | ✅ 62 source files |
+| 3 | `pytest -q --cov=app` | ✅ **341 passed, 3 skipped，覆盖率 89.75%** |
+| 4 | `alembic upgrade head --sql` | ✅ 生成 9 张 M0 表 + `rag_chunk`，含 `FULLTEXT ... WITH PARSER ngram` |
+| 5 | `pytest tests/unit/test_chunker.py` | ✅ 19 例（含语料守卫：FAQ 恰好 40 条、块数 ≥60、每块 ≤500 字） |
+
+### 示例语料（`seeds/corpus/`）
+
+| 文件 | 内容 | 分块 |
+| --- | --- | --- |
+| `售后政策总则.md` | 适用范围、7 天无理由、15 天质量问题、退款时效、运费、三包 | 按 6 个 `##` 节切分 |
+| `退换货细则.md` | 不支持无理由的商品、拆封判定、赠品/发票、取件、换货缺货、部分退 | 按 7 个 `##` 节切分 |
+| `退款与发票规则.md` | 退款路径、部分退款与券、价保、发票红冲、退款失败 | 按 5 个 `##` 节切分 |
+| `售后常见问题.md` | 40 条高频问答（Q01–Q40），分组标题 | 40 个 `###` 块，逐条可检索 |
+| `商品手册-蓝牙耳机Pro.md` | 参数、包装、保修、5 条常见问题、注意事项 | 按节 + 长节滑窗 |
+
+> 语料文件均标注「示例语料，M4 前替换为真实文档」，避免被误当法务文本。
+
+### 分块实现要点
+
+- 标题层级：`##`/`###` 生成 `售后政策总则 > 退款时效` 这样的节路径；`#` 作为文档标题不进正文；
+- 500 字硬上限 + 80 字重叠：重叠只在「加上后不超 500」时保留，宁可放弃重叠也不产生超长块；
+- 句子优先：按 `。！？；` 切句，尽量避免把一句话拆两半；超长单句（长表格）才硬切；
+- 元数据：`doc_id/title/section/version/index/chars` 同时喂 Chroma metadata 与 `rag_chunk`。
+
+### 迁移 0002
+
+```sql
+CREATE TABLE rag_chunk (... uk_ver_doc_chunk (index_version, doc_id, chunk_index) ...);
+ALTER TABLE rag_chunk ADD FULLTEXT INDEX ft_rag_chunk (title, content) WITH PARSER ngram;
+```
+
+CI 的 `migration` job 已升级为：`alembic upgrade head` → 校验 `ALL_TABLES` → **校验 `ft_rag_chunk` 索引存在** → `downgrade base`。
+
+### 本轮修掉的问题
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | `# 一级标题` 被当成正文块 | 识别 h1 后清空节栈并跳过 |
+| 2 | 无标题文档的节路径为空 | 回落到 `default_title` |
+| 3 | 带 overlap 的块可能超过 500 字 | 超限时放弃重叠，保证硬上限 |
+| 4 | 模型缺 `Text` 导入（ruff 曾判为未使用） | 显式引入并在契约测试中覆盖 |
+
+---
+
 ## 迭代 I1 · 第 1 天（2026-10-27）：M1-01 Provider 层
 
 | # | 命令 | 结果 |

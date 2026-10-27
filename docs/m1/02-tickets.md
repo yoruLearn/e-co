@@ -9,7 +9,7 @@
 | --- | --- | --- | --- | --- |
 | M1-00 | LangGraph 兼容 spike（StateGraph / AsyncRedisSaver TTL） | — | TODO | 2 节点 demo + checkpoint 恢复；ADR-0002 |
 | M1-01 | LLM/Embedding 抽象 + 真实网关 + mock 回放 | — | **DONE** | `app/llm/*`；真实 DeepSeek 联调 4 例通过；推理内容与正文分离；重试/降级/错误码单测 |
-| M1-02 | 示例语料 + chunker 实现 + `rag_chunk` 迁移 | M1-01 | TODO | 500/80 切分、元数据齐全、`alembic upgrade/downgrade` |
+| M1-02 | 示例语料 + chunker 实现 + `rag_chunk` 迁移 | M1-01 | **DONE** | 5 篇示例语料（3 政策 + 40 条 FAQ + 1 手册）；chunker 500/80 + 标题层级 + 元数据；迁移 0002 含 ngram FULLTEXT；31 例测试 |
 | M1-03 | 索引管道（批量向量化 → Chroma + MySQL → index_version） | M1-02 | TODO | 一键重建、doc_count 正确、可回滚 |
 | M1-04 | 混合召回 + RRF + Reranker + 双阈值 | M1-03 | TODO | 手算 RRF 对齐；Top1<0.55 不进生成；检索 P95 ≤1.2s |
 

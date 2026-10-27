@@ -148,17 +148,22 @@ jobs:
           from sqlalchemy import text
           from app.common.clients import build_clients
           from app.common.config import get_settings
-          from app.db.models import EXPECTED_TABLES
+          from app.db.models import ALL_TABLES
 
           async def main() -> None:
               clients = build_clients(get_settings())
               async with clients.engine.connect() as conn:
                   rows = await conn.execute(text("SHOW TABLES"))
                   tables = {row[0] for row in rows}
+                  index_rows = await conn.execute(
+                      text("SHOW INDEX FROM rag_chunk WHERE Key_name = 'ft_rag_chunk'")
+                  )
+                  fulltext = [row for row in index_rows.fetchall()]
               await clients.aclose()
-              missing = set(EXPECTED_TABLES) - tables
+              missing = set(ALL_TABLES) - tables
               assert not missing, f"缺少表: {missing}"
-              print(f"tables ok: {len(tables)}")
+              assert fulltext, "rag_chunk 缺少 FULLTEXT(ngram) 索引，中文关键词通道不可用"
+              print(f"tables ok: {len(tables)} | fulltext index columns: {len(fulltext)}")
 
           asyncio.run(main())
           PY

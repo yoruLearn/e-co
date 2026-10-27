@@ -18,6 +18,7 @@ from sqlalchemy import (
     CHAR,
     Index,
     String,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -268,6 +269,35 @@ class ToolAudit(Base):
     )
 
 
+class RagChunk(Base):
+    """检索分块（M1 新增，Spec §7.1）。
+
+    权威源是 ``seeds/corpus`` 文档 + ``index_version`` 表；本表可随时由文档重建。
+    ``FULLTEXT(title, content) WITH PARSER ngram`` 由迁移脚本 0002 手工创建
+    （SQLAlchemy 无法表达 ngram parser），这里用 ``mysql_prefix`` 保持文档一致。
+    """
+
+    __tablename__ = "rag_chunk"
+    __table_args__ = (
+        UniqueConstraint("index_version", "doc_id", "chunk_index", name="uk_ver_doc_chunk"),
+        Index("idx_ver_doc", "index_version", "doc_id"),
+        _MYSQL_TABLE_OPTIONS,
+    )
+
+    id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)
+    index_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    doc_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str] = mapped_column(String(128), nullable=False)
+    section: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    chunk_index: Mapped[int] = mapped_column(INTEGER(unsigned=True), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    char_count: Mapped[int] = mapped_column(INTEGER(unsigned=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DATETIME(fsp=3), nullable=False, server_default=_NOW_MS
+    )
+
+
 ALL_MODELS = (
     AfterSalesBiz,
     AfterSalesTransition,
@@ -278,9 +308,10 @@ ALL_MODELS = (
     EvalCase,
     EvalRun,
     ToolAudit,
+    RagChunk,
 )
 
-# 供契约测试使用（与 Spec §10.1 的 9 张表一一对应）
+#: Spec §10.1 的 9 张 M0 表（契约测试基准，不得被 M1 增量污染）
 EXPECTED_TABLES = frozenset(
     {
         "aftersales_biz",
@@ -294,3 +325,8 @@ EXPECTED_TABLES = frozenset(
         "tool_audit",
     }
 )
+
+#: M1 增量表（每个里程碑新增表必须登记在此，并配一条迁移）
+M1_TABLES = frozenset({"rag_chunk"})
+
+ALL_TABLES = EXPECTED_TABLES | M1_TABLES
