@@ -195,7 +195,8 @@ jobs:
           ANONYMIZED_TELEMETRY: "FALSE"
         ports: ["8100:8000"]
       redis:
-        image: redis:7-alpine
+        # RedisSaver 需要 RedisJSON + RediSearch，普通 redis:7 不满足
+        image: redis/redis-stack-server:7.4.0-v0
         ports: ["6379:6379"]
         options: >-
           --health-cmd="redis-cli ping"
@@ -212,6 +213,7 @@ jobs:
       EMBEDDING_DIM: "256"
       KEYWORD_BACKEND: mysql
       LLM_PROVIDER: mock
+      REQUIRE_REDIS: "1"   # checkpointer 集成测试必须在 CI 真跑，不许静默 skip
       LOG_LEVEL: WARNING
     steps:
       - uses: actions/checkout@v4

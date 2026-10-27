@@ -1,12 +1,17 @@
-"""Redis checkpointer 真实持久化（CI 的 RAG job 提供 Redis）。
+"""Redis checkpointer 真实持久化（CI 的 RAG job 提供 Redis Stack）。
 
 验证 Spec §6.2 第 5 条 / FR-AS-06 的核心诉求：**跨进程/跨实例恢复**。
 这里用两个独立的 ``AsyncRedisSaver`` 实例模拟两个进程。
+
+注意：``RedisSaver`` 依赖 **RedisJSON + RediSearch**（``json().get`` / redisvl 索引），
+普通 ``redis:7`` 会失败——CI 与 compose 都必须用 Redis Stack 镜像。
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
+import time
 import uuid
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -46,13 +51,20 @@ def _graph() -> Any:
     return graph
 
 
-async def _redis_available(url: str) -> bool:
+async def _redis_available(url: str, *, timeout_s: float = 45.0) -> bool:
+    """Redis Stack 容器启动需要几秒；轮询而不是一次探活就跳过。"""
     from redis.asyncio import Redis
 
     client: Redis = Redis.from_url(url, socket_connect_timeout=1, socket_timeout=1)
     try:
-        return bool(await client.ping())
-    except Exception:
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            try:
+                if await client.ping():
+                    return True
+            except Exception:  # noqa: S110 - 容器启动期探活失败属预期，继续等
+                pass
+            await asyncio.sleep(1)
         return False
     finally:
         await client.aclose()
@@ -62,7 +74,11 @@ async def _redis_available(url: str) -> bool:
 async def settings() -> Settings:
     url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
     if not await _redis_available(url):
-        pytest.skip(f"Redis 不可达：{url}")
+        message = f"Redis 不可达：{url}（checkpointer 需要 Redis Stack：RedisJSON + RediSearch）"
+        if os.environ.get("REQUIRE_REDIS") == "1":
+            # CI 上必须真跑：静默 skip 会造成"假绿"
+            pytest.fail(message)
+        pytest.skip(message)
     return Settings(
         _env_file=None,
         app_env="test",

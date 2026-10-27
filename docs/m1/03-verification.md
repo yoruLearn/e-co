@@ -40,6 +40,7 @@
 | 2 | `str.format` 与 prompt 里的 JSON 花括号冲突 | 改用 `string.Template`（`$question`） |
 | 3 | `async def` 里直接读文件触发 ASYNC240 | 抽出同步 `load_prompt_seeds()` |
 | 4 | 脱敏计数用 `subn` 返回 `Any` | 改用 `findall` 计数 + `sub` 替换 |
+| 5 | **CI 的 Redis checkpointer 失败**：`RedisSaver` 依赖 RedisJSON + RediSearch，`redis:7-alpine` 不满足 | CI 与 compose 改用 `redis/redis-stack-server:7.4.0-v0`；集成测试改为轮询探活 + `REQUIRE_REDIS=1` 时失败而非 skip（防假绿） |
 
 ### 本轮的"未验证"（不许算绿）
 

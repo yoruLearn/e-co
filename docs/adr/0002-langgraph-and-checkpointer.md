@@ -29,6 +29,7 @@ M1-00 的任务是：**在 Python 3.11 + pydantic v2 环境下验证这套 API �
 | `AsyncRedisSaver` 构造 | ✅ 只构造**不连接** Redis（`redis_url` 不存在的端口也不报错） |
 | `AsyncRedisSaver` TTL 参数 | `ttl: Optional[Dict[str, Any]]`，键为 `default_ttl` / `refresh_on_read` |
 | **TTL 单位** | **分钟**（0.5.x 内部按分钟换算），不是秒 —— 这是最容易被写错的一处 |
+| **Redis 形态** | ⚠️ **必须是 Redis Stack**：`RedisSaver` 调用 `json().get()` 并用 `redisvl` 建 RediSearch 索引，普通 `redis:7` 会在 `asetup`/首次读写时失败（CI 首轮即因此失败） |
 | `asetup()` | 异步、返回 None、负责建索引；必须在使用前 await |
 | 跨实例恢复 | CI 用两个独立 saver 实例（模拟两个进程）验证同一 `thread_id` 能读回 state |
 
@@ -44,9 +45,12 @@ spike 没有发现与 3.11 / pydantic v2 / asyncio 的冲突，Spec 指定的技
 | 后端 | 使用场景 | 行为 |
 | --- | --- | --- |
 | `memory`（默认） | 单测、无 Redis 的本地开发 | 进程内，重启即丢；图机制一致 |
-| `redis` | staging/prod、CI 集成测试 | 跨进程/跨实例恢复，TTL = `SESSION_TTL_HOURS * 60` 分钟，`refresh_on_read=true` |
+| `redis` | staging/prod、CI 集成测试 | 跨进程/跨实例恢复，TTL = `SESSION_TTL_HOURS * 60` 分钟，`refresh_on_read=true`；**要求 Redis Stack（JSON + Search）** |
 
-好处：CI 不需要为了跑图而先起 Redis；生产仍满足"审批挂起可恢复"。
+> 运维含义：生产 Redis 必须是 **Redis Stack 或云托管且开启 RedisJSON + RediSearch 模块**；
+> 只在应用侧用 `SET/GET` 的普通 Redis 无法承载 checkpointer。compose 已改为
+> `redis/redis-stack-server:7.4.0-v0`；CI 集成测试使用同一镜像，并在 `REQUIRE_REDIS=1`
+> 时不允许因 Redis 不可用而 skip（避免"假绿"）。
 
 ### 3.3 图与存储解耦
 

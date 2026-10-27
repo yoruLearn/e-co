@@ -105,8 +105,9 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "allkeys-lru"]
+    # 必须用 Redis Stack：LangGraph checkpointer 依赖 RedisJSON + RediSearch
+    # （普通 redis:7 会在 asetup/首次读写时失败）。缓存/会话/锁等普通用法同样可用。
+    image: redis/redis-stack-server:7.4.0-v0
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
