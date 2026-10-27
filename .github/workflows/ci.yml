@@ -170,3 +170,52 @@ jobs:
 
       - name: downgrade base（可回退性）
         run: uv run alembic downgrade base
+
+  rag-integration:
+    name: RAG 端到端（MySQL 8 + Chroma）
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: aftersales
+          MYSQL_USER: aftersales
+          MYSQL_PASSWORD: aftersales
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+      chroma:
+        image: chromadb/chroma:0.5.20
+        env:
+          IS_PERSISTENT: "FALSE"
+          ANONYMIZED_TELEMETRY: "FALSE"
+        ports: ["8100:8000"]
+    env:
+      APP_ENV: dev
+      DATABASE_URL: mysql+aiomysql://aftersales:aftersales@127.0.0.1:3306/aftersales?charset=utf8mb4
+      REDIS_URL: redis://127.0.0.1:6379/0
+      CHROMA_URL: http://127.0.0.1:8100
+      # CI 不下载 100MB 本地模型：hash 向量只为连通性验证，检索质量由本地/评测集负责
+      EMBEDDING_PROVIDER: hash
+      EMBEDDING_DIM: "256"
+      KEYWORD_BACKEND: mysql
+      LLM_PROVIDER: mock
+      LOG_LEVEL: WARNING
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.x"
+          enable-cache: true
+      - run: uv sync --extra dev
+
+      - name: migrate
+        run: uv run alembic upgrade head
+
+      # 建索引 → 校验条数/版本 → 混合召回 → 关键词单通道，全部走真实 MySQL + Chroma
+      - name: rag smoke
+        run: uv run python scripts/rag_smoke.py --version v1
