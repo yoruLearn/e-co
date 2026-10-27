@@ -21,6 +21,7 @@ deploy/.env
 *.pem
 *.key
 secrets/
+.secrets/
 
 # ---- IDE / OS ----
 .idea/
