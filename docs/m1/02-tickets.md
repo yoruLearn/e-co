@@ -19,9 +19,9 @@
 | --- | --- | --- | --- | --- |
 | M1-05 | Prompt Registry + 注入防御 + 出口脱敏 | M1-01 | **DONE** | `app/prompt/*`：DB 优先 + seed 回落 + 进程内缓存；`<user_input>` 转义闭合标签；手机号/身份证/银行卡/邮箱打码；24 单测；CI 灌库后从 DB 读取验证 |
 | M1-06 | LangGraph 图装配（7 节点 + 条件边 + 调用上限） | M1-04 | **DONE** | `build_graph` + router/rewrite/retrieve/answer/clarify/reject/pending_capability/sse_out；四类意图分流；节点超时与降级；checkpoint 按 session_id 隔离 |
-| M1-07 | SSE 流式 + citation 事件 + `id:` 续传 | M1-06 | **DOING** | 已实现 delta/citation/clarify/status/error/done + `id:` 序号 + 句子级流式脱敏；`Last-Event-ID` 缓冲回放待 I2 收尾 |
-| M1-08 | 会话记忆（10 轮 + 摘要）+ 指代改写 | M1-06 | TODO | 第 11 轮触发摘要；多轮用例可测 |
-| M1-09 | 两级缓存 + 单飞 + 索引版本联动失效 | M1-04 | TODO | 并发同 query 只回源 1 次；切版本无旧结果 |
+| M1-07 | SSE 流式 + citation 事件 + `id:` 续传 | M1-06 | **DONE** | delta/citation/clarify/status/error/done + 会话级递增 `id`；Redis 帧缓冲（cap 500/TTL 300s）+ `Last-Event-ID` 回放（不重新生成）；句子级脱敏 |
+| M1-08 | 会话记忆（10 轮 + 摘要）+ 指代改写 | M1-06 | **DONE** | 滑动窗口 + 溢出原文归档 + 每挤出 2 轮压缩一次；摘要注入历史；多轮改写接线并有测试 |
+| M1-09 | 两级缓存 + 单飞 + 索引版本联动失效 | M1-04 | **DONE** | `TwoLevelCache`（L1 60s/L2 300s）+ per-key 单飞（并发 8 只回源 1 次）；检索结果按 `rag:{ver}:{hash}` 缓存；版本切换按前缀失效 |
 
 ## I3 · 质量与可观测（第 3 周）
 

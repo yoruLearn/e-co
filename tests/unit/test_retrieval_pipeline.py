@@ -358,3 +358,49 @@ def test_render_result_json_and_text() -> None:
 
     empty = RetrievalResult(query="q", index_version="v1", hits=[], band=ConfidenceBand.FALLBACK)
     assert "（无命中）" in render_result(empty)
+
+
+class FakeCache:
+    def __init__(self) -> None:
+        self.data: dict[str, object] = {}
+
+    async def get(self, key: str) -> object | None:
+        return self.data.get(key)
+
+    async def set(self, key: str, value: object) -> None:
+        self.data[key] = value
+
+
+async def test_retriever_cache_hit_avoids_second_retrieval() -> None:
+    vector = FakeVectorIndex([vector_hit("a#0", 0.9)])
+    cache = FakeCache()
+    retriever = HybridRetriever(
+        embedding=HashEmbedding(dim=32),
+        vector_index=vector,
+        keyword_index=MemoryBM25KeywordIndex(),
+        settings=make_settings(),
+        cache=cache,
+    )
+    first = await retriever.retrieve("退款多久到账", index_version="v1", collection_id="c1")
+    second = await retriever.retrieve("退款多久到账", index_version="v1", collection_id="c1")
+    assert first.cached is False
+    assert second.cached is True
+    assert len(vector.queries) == 1
+    assert second.top1_score == pytest.approx(first.top1_score)
+    assert second.hits[0].chunk_id == first.hits[0].chunk_id
+
+
+async def test_retriever_cache_key_bound_to_index_version() -> None:
+    vector = FakeVectorIndex([vector_hit("a#0", 0.9)])
+    cache = FakeCache()
+    retriever = HybridRetriever(
+        embedding=HashEmbedding(dim=32),
+        vector_index=vector,
+        keyword_index=MemoryBM25KeywordIndex(),
+        settings=make_settings(),
+        cache=cache,
+    )
+    await retriever.retrieve("退款", index_version="v1", collection_id="c1")
+    second = await retriever.retrieve("退款", index_version="v2", collection_id="c1")
+    assert second.cached is False
+    assert len(vector.queries) == 2

@@ -18,6 +18,8 @@ from sqlalchemy import select
 
 from app.agent.checkpointer import build_checkpointer, close_checkpointer, init_checkpointer
 from app.agent.graph import build_graph
+from app.api.sse_buffer import SseBuffer
+from app.cache.two_level import TwoLevelCache
 from app.common.clients import AppClients
 from app.common.config import Settings
 from app.common.logging import get_logger, log_warning
@@ -30,6 +32,7 @@ from app.rag.chunker import collection_name
 from app.rag.keyword import EmptyKeywordIndex, KeywordIndex, MysqlKeywordIndex
 from app.rag.pipeline import HybridRetriever, LlmReranker, NoopReranker
 from app.session.store import SessionStore
+from app.session.summarize import SessionSummarizer
 
 logger = get_logger("app.agent.runtime")
 
@@ -46,7 +49,10 @@ class AgentRuntime:
     session_store: SessionStore
     graph: Any = None
     clients: AppClients | None = None
+    sse_buffer: SseBuffer = field(default_factory=lambda: SseBuffer(None))
+    cache: TwoLevelCache | None = None
     _collection_cache: dict[str, str] = field(default_factory=dict)
+    _last_index_version: str | None = None
 
     async def active_index_version(self) -> str:
         """取 active 版本；DB 不可用时回落到配置里的默认版本（离线/测试）。"""
@@ -59,10 +65,30 @@ class AgentRuntime:
                         .order_by(IndexVersion.id.desc())
                     )
                 if row is not None:
+                    await self._invalidate_on_version_change(row.version)
                     return row.version
             except Exception as exc:
                 log_warning(logger, "runtime.index_version.failed", reason=type(exc).__name__)
-        return self.settings.rag_index_version
+        version = self.settings.rag_index_version
+        await self._invalidate_on_version_change(version)
+        return version
+
+    async def _invalidate_on_version_change(self, version: str) -> None:
+        """索引版本切换时整组检索缓存失效（FR-CACHE-03）。"""
+        previous = self._last_index_version
+        if previous is None or previous == version:
+            self._last_index_version = version
+            return
+        if self.cache is not None:
+            removed = await self.cache.invalidate_prefix(f"rag:{previous}:")
+            log_warning(
+                logger,
+                "runtime.index_version.switched",
+                previous=previous,
+                current=version,
+                cache_removed=removed,
+            )
+        self._last_index_version = version
 
     async def collection_id(self, version: str) -> str | None:
         """取/建 collection；Chroma 不可用返回 None（检索器会自动只用关键词通道）。"""
@@ -104,18 +130,25 @@ def build_agent_runtime(settings: Settings, clients: AppClients) -> AgentRuntime
         )
 
     reranker = LlmReranker(chat) if settings.rerank_provider == "llm" else NoopReranker()
+    prompts = PromptRegistry.from_settings(settings, session_factory=clients.session_factory)
+    cache = TwoLevelCache(
+        clients.redis,
+        local_ttl_seconds=60,
+        redis_ttl_seconds=settings.rag_cache_ttl_sec,
+    )
     retriever = HybridRetriever(
         embedding=embedding,
         vector_index=vector_index or _NullVectorIndex(),
         keyword_index=keyword_index,
         settings=settings,
         reranker=reranker,
+        cache=cache,
     )
     runtime = AgentRuntime(
         settings=settings,
         chat=chat,
         embedding=embedding,
-        prompts=PromptRegistry.from_settings(settings, session_factory=clients.session_factory),
+        prompts=prompts,
         retriever=retriever,
         vector_index=vector_index,
         checkpointer=build_checkpointer(settings),
@@ -123,8 +156,15 @@ def build_agent_runtime(settings: Settings, clients: AppClients) -> AgentRuntime
             clients.redis,
             ttl_seconds=settings.session_ttl_hours * 3600,
             window_turns=settings.session_window_turns,
+            summarizer=SessionSummarizer(chat, prompts),
         ),
         clients=clients,
+        sse_buffer=SseBuffer(
+            clients.redis,
+            ttl_seconds=settings.sse_buffer_ttl_sec,
+            max_frames=settings.sse_buffer_max_frames,
+        ),
+        cache=cache,
     )
     runtime.graph = build_graph(runtime)
     return runtime

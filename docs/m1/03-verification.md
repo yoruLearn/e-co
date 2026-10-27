@@ -2,6 +2,60 @@
 
 > 逐迭代留痕：做了什么、跑了什么、数字是多少、哪些是"假绿"必须排除。
 
+## 迭代 I2 收尾 · 第 6 天（2026-10-27）：M1-07/08/09
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `ruff check .` / `ruff format --check .` | ✅ 135 文件 |
+| 2 | `mypy app`（strict） | ✅ 80 source files |
+| 3 | `pytest -q --cov=app` | ✅ **463 passed, 10 skipped，覆盖率 85.43%** |
+| 4 | `pytest tests/integration/test_chat_stream.py` | ✅ 12 例（含续传、多轮改写） |
+| 5 | `pytest tests/unit/test_cache.py tests/unit/test_session_store.py` | ✅ 19 例 |
+
+### M1-07 断线续传
+
+| 项 | 实现 | 验证 |
+| --- | --- | --- |
+| 帧 id | Redis `INCR sse:seq:{sid}`，会话级递增，跨副本唯一 | 帧 id 连续无跳号 |
+| 帧缓冲 | `sse:frames:{sid}` list，cap 500 / TTL 300s；Redis 挂掉降级进程内 | 容量/前缀测试 |
+| 续传 | `Last-Event-ID: n` → 只回放 id>n 的帧，**不重新生成答案** | 测试断言 `stream_calls` 不变、回放 id 序列完全一致 |
+| 过期 | 无帧可回放 → `error`(AS-4001) + `done` | 测试覆盖 |
+| 非法头 | 非整数/负数 → 400 `AS-4001` | 测试覆盖 |
+
+### M1-08 会话记忆与改写
+
+- 窗口 10 轮；被挤出的轮次先进 `archive`（上限 1500 字），每挤出 2 轮才调用一次摘要模型；
+- 摘要成功后清空 archive，拼进 `summary`（≤600 字）；失败保留原文，下轮重试；
+- 历史注入顺序：`（历史摘要）` → `（更早的对话原文）` → 最近窗口；
+- 多轮用例：带历史时同时调用 router + rewrite，检索用改写后的 query（有断言）。
+
+### M1-09 缓存与单飞
+
+| 项 | 实现 | 验证 |
+| --- | --- | --- |
+| 两级缓存 | L1 进程内 60s；L2 Redis 300s（`cache:rag:{ver}:{hash}`） | L2 命中、前缀失效测试 |
+| 单飞 | per-key asyncio.Lock + 双检；等锁超时返回缓存/降级值 | 并发 8 请求 → factory 只跑 1 次 |
+| 版本联动 | 检索结果按索引版本分 key；版本切换按 `rag:{old}:` 前缀失效 | 跨版本不命中测试 |
+| 降级 | Redis 故障时只读 L1，业务不失败 | 故障注入测试 |
+
+### 本轮修掉的问题
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | 摘要触发条件写成"总轮数 > 窗口 2 倍"，但每轮 append 都会裁剪，永不触发 | 改为"挤出即归档，每挤出 2 轮压缩一次" |
+| 2 | `redis-py` 部分方法返回 `Awaitable[T] \| T`，直接 await 触发 mypy 报错 | `_maybe_await` 统一处理 |
+| 3 | 缓存对象用 `object` 类型 + `type: ignore`，mypy 报未覆盖错误码 | 定义 `RetrievalCache` 协议，去掉 ignore |
+
+### 本轮的"未验证"
+
+| 项 | 原因 | 何时补 |
+| --- | --- | --- |
+| 首 token P95 / 端到端 P95 | 未接真实 Chroma+embedding 计时，且真实模型推理首字 ~2.2s | M1-12 指标 + 压测 |
+| `rag_cache_hit_ratio` 指标 | 缓存命中统计未接 Prometheus gauge | M1-12 |
+| 摘要对长会话质量 | 需评测集多轮用例 | M1-10 |
+
+---
+
 ## 迭代 I2 · 第 5 天（2026-10-27）：M1-06 图装配 + M1-07 流式 SSE
 
 | # | 命令 | 结果 |

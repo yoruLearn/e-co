@@ -18,6 +18,7 @@ from app.common.config import Settings
 from app.common.logging import get_logger, log_warning
 from app.llm.base import ChatModel, EmbeddingModel
 from app.llm.types import ChatMessage, LLMError
+from app.rag.cache import rag_cache_key
 from app.rag.chroma import VectorHit, VectorIndex
 from app.rag.errors import RetrievalError
 from app.rag.keyword import KeywordHit, KeywordIndex, normalize_scores
@@ -61,6 +62,67 @@ class RetrievalResult:
     degraded: list[str] = field(default_factory=list)
     vector_ok: bool = True
     keyword_ok: bool = True
+    cached: bool = False
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "query": self.query,
+            "index_version": self.index_version,
+            "band": str(self.band),
+            "degraded": list(self.degraded),
+            "vector_ok": self.vector_ok,
+            "keyword_ok": self.keyword_ok,
+            "hits": [
+                {
+                    "chunk_id": hit.chunk_id,
+                    "doc_id": hit.doc_id,
+                    "title": hit.title,
+                    "section": hit.section,
+                    "content": hit.content,
+                    "score": hit.score,
+                    "vector_score": hit.vector_score,
+                    "keyword_score": hit.keyword_score,
+                    "fused_score": hit.fused_score,
+                    "vector_rank": hit.vector_rank,
+                    "keyword_rank": hit.keyword_rank,
+                    "rerank_score": hit.rerank_score,
+                }
+                for hit in self.hits
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> RetrievalResult:
+        raw_hits_value = payload.get("hits")
+        raw_hits = raw_hits_value if isinstance(raw_hits_value, list) else []
+        hits = [
+            RetrievalHit(
+                chunk_id=str(item["chunk_id"]),
+                doc_id=str(item["doc_id"]),
+                title=str(item.get("title", "")),
+                section=str(item.get("section", "")),
+                content=str(item.get("content", "")),
+                score=float(item.get("score", 0.0)),
+                vector_score=_optional_float(item.get("vector_score")),
+                keyword_score=_optional_float(item.get("keyword_score")),
+                fused_score=float(item.get("fused_score", 0.0)),
+                vector_rank=_optional_int(item.get("vector_rank")),
+                keyword_rank=_optional_int(item.get("keyword_rank")),
+                rerank_score=_optional_float(item.get("rerank_score")),
+            )
+            for item in raw_hits
+            if isinstance(item, dict)
+        ]
+        return cls(
+            query=str(payload.get("query", "")),
+            index_version=str(payload.get("index_version", "")),
+            hits=hits,
+            band=ConfidenceBand(str(payload.get("band", "fallback"))),
+            degraded=_as_str_list(payload.get("degraded")),
+            vector_ok=bool(payload.get("vector_ok", True)),
+            keyword_ok=bool(payload.get("keyword_ok", True)),
+            cached=True,
+        )
 
     @property
     def top1_score(self) -> float:
@@ -69,6 +131,13 @@ class RetrievalResult:
     @property
     def empty(self) -> bool:
         return not self.hits
+
+
+@runtime_checkable
+class RetrievalCache(Protocol):
+    async def get(self, key: str) -> object | None: ...
+
+    async def set(self, key: str, value: object) -> None: ...
 
 
 @runtime_checkable
@@ -174,6 +243,35 @@ class LlmReranker:
         return reranked[:top_k]
 
 
+def _as_str_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
+
+
+def _optional_float(value: object) -> float | None:
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _optional_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.lstrip("-").isdigit():
+        return int(value)
+    if isinstance(value, float):
+        return int(value)
+    return None
+
+
 def fuse_hits(
     vector_hits: list[VectorHit],
     keyword_hits: list[KeywordHit],
@@ -243,12 +341,14 @@ class HybridRetriever:
         keyword_index: KeywordIndex,
         settings: Settings,
         reranker: Reranker | None = None,
+        cache: RetrievalCache | None = None,
     ) -> None:
         self._embedding = embedding
         self._vector = vector_index
         self._keyword = keyword_index
         self._settings = settings
         self._reranker: Reranker = reranker or NoopReranker()
+        self._cache = cache
 
     async def retrieve(
         self,
@@ -258,6 +358,12 @@ class HybridRetriever:
         collection_id: str | None = None,
         top_k: int | None = None,
     ) -> RetrievalResult:
+        cache_key = rag_cache_key(index_version, query)
+        if self._cache is not None:
+            cached = await self._cache.get(cache_key)
+            if isinstance(cached, dict):
+                return RetrievalResult.from_dict(cached)
+
         degraded: list[str] = []
         vector_hits: list[VectorHit] = []
         keyword_hits: list[KeywordHit] = []
@@ -322,7 +428,7 @@ class HybridRetriever:
                 "degraded": degraded,
             },
         )
-        return RetrievalResult(
+        result = RetrievalResult(
             query=query,
             index_version=index_version,
             hits=reranked,
@@ -331,3 +437,6 @@ class HybridRetriever:
             vector_ok=vector_ok,
             keyword_ok=keyword_ok,
         )
+        if self._cache is not None and result.hits:
+            await self._cache.set(cache_key, result.to_dict())
+        return result

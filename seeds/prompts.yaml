@@ -96,3 +96,15 @@ prompts:
 
       资料：
       $passages
+
+  summary:
+    version: 1
+    status: published
+    updated_by: seed
+    content: |
+      把下面的售后对话压缩成不超过 150 字的摘要，只保留与售后处理有关的事实：
+      订单号/商品、用户诉求（退款/退货/换货）、已确认的原因与处理结论。
+      不要编造、不要寒暄、不要输出列表。
+
+      对话：
+      $history

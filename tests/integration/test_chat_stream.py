@@ -35,9 +35,13 @@ class FakeChat:
         self._answer = answer
         self._intent = intent
         self.complete_calls: list[dict[str, Any]] = []
+        self.stream_calls = 0
 
     async def complete(self, messages: list[ChatMessage], **kwargs: Any) -> ChatResult:
         self.complete_calls.append({"messages": messages, **kwargs})
+        if not kwargs.get("json_mode"):
+            # rewrite / summary 等非结构化调用
+            return ChatResult(content="改写后的问题", model="fake", usage=Usage(total_tokens=8))
         payload = {"intent": self._intent, "confidence": 0.92}
         return ChatResult(
             content=json.dumps(payload, ensure_ascii=False),
@@ -63,10 +67,12 @@ class FakeRetriever:
     ) -> None:
         self._hits = hits if hits is not None else [_default_hit()]
         self._band = band
+        self.queries: list[str] = []
 
     async def retrieve(
         self, query: str, *, index_version: str, collection_id: str | None, top_k: int | None = None
     ) -> RetrievalResult:
+        self.queries.append(query)
         return RetrievalResult(
             query=query,
             index_version=index_version,
@@ -283,3 +289,86 @@ def test_frame_ids_are_sequential(
 
 def test_intent_enum_roundtrip() -> None:
     assert Intent("qa") is Intent.QA
+
+
+def test_resume_replays_only_frames_after_last_event_id(
+    settings: Settings, buyer_auth: dict[str, str]
+) -> None:
+    runtime = build_fake_runtime(settings)
+    app = create_app(settings)
+    app.state.agent = runtime
+    with TestClient(app) as client:
+        first = stream_chat(client, buyer_auth, "退款多久到账", session="resume-1")
+        assert len(first) >= 4
+        calls_before = runtime.chat.stream_calls  # type: ignore[attr-defined]
+
+        with client.stream(
+            "POST",
+            "/api/v1/chat/stream",
+            json={"session_id": "resume-1", "message": "继续"},
+            headers={**buyer_auth, "Last-Event-ID": str(first[0]["id"])},
+        ) as response:
+            body = b"".join(response.iter_bytes()).decode("utf-8")
+    replayed = parse_frames(body)
+
+    assert [frame["id"] for frame in replayed] == [frame["id"] for frame in first[1:]]
+    assert runtime.chat.stream_calls == calls_before, "续传不应重新生成答案"  # type: ignore[attr-defined]
+
+
+def test_resume_with_unknown_session_returns_error(
+    settings: Settings, buyer_auth: dict[str, str]
+) -> None:
+    runtime = build_fake_runtime(settings)
+    app = create_app(settings)
+    app.state.agent = runtime
+    with (
+        TestClient(app) as client,
+        client.stream(
+            "POST",
+            "/api/v1/chat/stream",
+            json={"session_id": "never-seen", "message": "继续"},
+            headers={**buyer_auth, "Last-Event-ID": "99"},
+        ) as response,
+    ):
+        body = b"".join(response.iter_bytes()).decode("utf-8")
+    frames = parse_frames(body)
+    assert frames[0]["event"] == "error"
+    assert frames[0]["data"]["code"] == "AS-4001"
+    assert frames[-1]["event"] == "done"
+
+
+def test_resume_with_invalid_header_returns_400(
+    settings: Settings, buyer_auth: dict[str, str]
+) -> None:
+    app = create_app(settings)
+    app.state.agent = build_fake_runtime(settings)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/chat/stream",
+            json={"session_id": "s", "message": "hi"},
+            headers={**buyer_auth, "Last-Event-ID": "abc"},
+        )
+    assert response.status_code == 400
+    assert response.json()["code"] == "AS-4001"
+
+
+def test_multi_turn_history_triggers_rewrite(
+    settings: Settings, buyer_auth: dict[str, str]
+) -> None:
+    runtime = build_fake_runtime(settings)
+    runtime.session_store.state = SessionState(  # type: ignore[attr-defined]
+        turns=[
+            {"role": "user", "content": "我的耳机能退吗"},
+            {"role": "assistant", "content": "请提供订单号或确认最近一笔订单"},
+        ]
+    )
+    app = create_app(settings)
+    app.state.agent = runtime
+    with TestClient(app) as client:
+        frames = stream_chat(client, buyer_auth, "那这一单呢", session="multi-1")
+
+    retriever: FakeRetriever = runtime.retriever  # type: ignore[assignment]
+    assert retriever.queries and retriever.queries[0] == "改写后的问题"
+    chat: FakeChat = runtime.chat  # type: ignore[assignment]
+    assert len(chat.complete_calls) >= 2, "多轮应同时调用 router 与 rewrite"
+    assert frames[-1]["event"] == "done"
