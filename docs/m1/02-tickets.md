@@ -7,7 +7,7 @@
 
 | ID | 任务 | 依赖 | 状态 | 交付/验收 |
 | --- | --- | --- | --- | --- |
-| M1-00 | LangGraph 兼容 spike（StateGraph / AsyncRedisSaver TTL） | — | TODO | 2 节点 demo + checkpoint 恢复；ADR-0002 |
+| M1-00 | LangGraph 兼容 spike（StateGraph / AsyncRedisSaver TTL） | — | **DONE** | 图机制 + 条件边 + checkpoint 读回；`AsyncRedisSaver` 构造不连接、TTL 单位=分钟、`asetup()` 异步；ADR-0002 + 9 单测 + CI Redis 跨实例恢复 |
 | M1-01 | LLM/Embedding 抽象 + 真实网关 + mock 回放 | — | **DONE** | `app/llm/*`；真实 DeepSeek 联调 4 例通过；推理内容与正文分离；重试/降级/错误码单测 |
 | M1-02 | 示例语料 + chunker 实现 + `rag_chunk` 迁移 | M1-01 | **DONE** | 5 篇示例语料（3 政策 + 40 条 FAQ + 1 手册）；chunker 500/80 + 标题层级 + 元数据；迁移 0002 含 ngram FULLTEXT；31 例测试 |
 | M1-03 | 索引管道（批量向量化 → Chroma + MySQL → index_version） | M1-02 | **DONE** | `Indexer.build/activate/versions` + Chroma REST + CLI `rebuild`；CI job「RAG 端到端」实测：条数一致、版本 active、混合召回与关键词单通道均命中 |
@@ -17,7 +17,7 @@
 
 | ID | 任务 | 依赖 | 状态 | 交付/验收 |
 | --- | --- | --- | --- | --- |
-| M1-05 | Prompt Registry + 注入防御 + 出口脱敏 | M1-01 | TODO | 红队 10 条拒绝跨段指令；手机号/身份证打码 |
+| M1-05 | Prompt Registry + 注入防御 + 出口脱敏 | M1-01 | **DONE** | `app/prompt/*`：DB 优先 + seed 回落 + 进程内缓存；`<user_input>` 转义闭合标签；手机号/身份证/银行卡/邮箱打码；24 单测；CI 灌库后从 DB 读取验证 |
 | M1-06 | LangGraph 图装配（7 节点 + 条件边 + 调用上限） | M1-04 | TODO | 四类意图分流；超时降级；checkpoint 重放 |
 | M1-07 | SSE 流式 + citation 事件 + `id:` 续传 | M1-06 | TODO | 首 token 达标（缓存命中）；断线帧连续 |
 | M1-08 | 会话记忆（10 轮 + 摘要）+ 指代改写 | M1-06 | TODO | 第 11 轮触发摘要；多轮用例可测 |

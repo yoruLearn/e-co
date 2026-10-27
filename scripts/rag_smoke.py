@@ -28,6 +28,8 @@ from app.common.config import get_settings
 from app.common.logging import configure_logging
 from app.db.models import RagChunk
 from app.llm.factory import build_embedding
+from app.prompt.registry import PromptRegistry
+from app.prompt.seed import seed_from_yaml
 from app.rag.chroma import ChromaVectorIndex, wait_for_chroma
 from app.rag.chunker import collection_name, load_corpus
 from app.rag.indexer import Indexer
@@ -101,6 +103,18 @@ async def main(version: str, corpus_dir: Path) -> int:
         print(f"[rag-smoke] keyword-only hits={len(keyword_only.hits)} band={keyword_only.band}")
         if not keyword_only.hits:
             print("[rag-smoke] 关键词通道无命中（ngram 索引可能未生效）", file=sys.stderr)
+            return 1
+
+        # Prompt Registry：先灌基线，再从 DB 读回（验证 DB 源优先于 seed 源）
+        seeded = await seed_from_yaml(
+            session_factory=clients.session_factory,
+            path=Path(settings.prompt_seed_path),
+        )
+        registry = PromptRegistry.from_settings(settings, session_factory=clients.session_factory)
+        template = await registry.get("answer_rag")
+        print(f"[rag-smoke] prompts seeded={seeded} source={template.source} v={template.version}")
+        if template.source != "db" or "[[" not in template.content:
+            print("[rag-smoke] Prompt Registry 未从 DB 读到基线", file=sys.stderr)
             return 1
 
         print("[rag-smoke] OK")

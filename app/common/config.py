@@ -134,6 +134,9 @@ class Settings(BaseSettings):
     session_ttl_hours: int = 24
     session_window_turns: int = Field(default=10, ge=2, le=50)
     prompt_cache_ttl_sec: int = 60
+    prompt_seed_path: str = "seeds/prompts.yaml"
+    # LangGraph checkpointer：memory 用于测试/无 Redis 的本地开发；redis 为生产形态
+    checkpointer_backend: Literal["memory", "redis"] = "memory"
 
     sse_buffer_ttl_sec: int = 300
     sse_buffer_max_frames: int = 500

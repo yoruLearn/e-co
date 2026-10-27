@@ -23,8 +23,13 @@ dependencies = [
   "prometheus-client>=0.21,<1",
   "PyJWT>=2.10,<3",
   "orjson>=3.10,<4",
+  # Prompt 基线用 YAML 维护（uvicorn[standard] 也带，但显式声明避免隐式依赖）
+  "PyYAML>=6,<7",
   # aiomysql 连接 MySQL 8 的 caching_sha2_password 需要；PyJWT 的 RS256 签名/验签同样需要
   "cryptography>=43,<47",
+  # Agent 编排（Spec §2.2 指定 LangGraph）；checkpoint 走 Redis，支撑审批挂起恢复
+  "langgraph>=1.0,<2",
+  "langgraph-checkpoint-redis>=0.5,<1",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +40,7 @@ dev = [
   "ruff>=0.8,<1",
   "mypy>=1.13,<2",
   "types-PyMySQL>=1.1",
+  "types-PyYAML>=6.0",
 ]
 # 本地语义向量（bge-small-zh，ONNX）；CI 用 hash，不安装此 extra
 # onnxruntime 1.31 在本机（Win11 / i5-1240P / numpy 2.4）导入即 access violation，
@@ -58,6 +64,7 @@ markers = [
   "contract: Spec 表格与代码常量一致性守护",
   "integration_llm: 需要真实 LLM 网关与 key（默认跳过）",
   "local_embed: 需要本地 fastembed 模型（默认跳过，`RUN_LOCAL_EMBED=1` 开启）",
+  "integration_redis: 需要真实 Redis（CI 的 RAG job 提供）",
 ]
 filterwarnings = [
   "error::DeprecationWarning:app.*",
@@ -102,6 +109,7 @@ ignore = [
 "app/migrations/env.py" = ["ANN", "E402", "T20"]
 "app/api/routers/*.py" = ["ARG001"]   # M0 契约占位：参数由框架注入，实现留待 M1/M2
 "app/rag/cli.py" = ["T201"]           # CLI 输出即产品行为
+"app/prompt/seed.py" = ["T201"]      # 同上
 "scripts/**" = ["ANN", "T20"]
 
 [tool.ruff.lint.isort]

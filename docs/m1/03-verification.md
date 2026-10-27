@@ -2,6 +2,55 @@
 
 > 逐迭代留痕：做了什么、跑了什么、数字是多少、哪些是"假绿"必须排除。
 
+## 迭代 I1/I2 交界 · 第 4 天（2026-10-27）：M1-00 spike + M1-05 Prompt 层
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `ruff check .` / `ruff format --check .` | ✅ 120 文件 |
+| 2 | `mypy app`（strict） | ✅ 71 source files |
+| 3 | `pytest -q --cov=app` | ✅ **410 passed, 10 skipped，覆盖率 85.12%** |
+| 4 | `pytest tests/unit/test_checkpointer.py` | ✅ 9 passed（图机制 + 策略 + 后端选择） |
+| 5 | `pytest tests/unit/test_prompt_*.py` | ✅ 24 passed（防御/脱敏/Registry/基线守卫） |
+| 6 | CI「RAG 端到端」job | ✅ 新增 MySQL+Chroma+**Redis** 三服务；含 `redis checkpoint` 步骤 |
+
+### M1-00 spike 结论（详见 [ADR-0002](../adr/0002-langgraph-and-checkpointer.md)）
+
+| 项 | 实测 |
+| --- | --- |
+| langgraph / checkpoint-redis | 1.2.18 / 0.5.2，解析无冲突 |
+| `AsyncRedisSaver(ttl=...)` | **TTL 单位是分钟**（写成秒会变 1440 小时）；`refresh_on_read` 可配 |
+| 构造阶段 | 不连接 Redis，`redis_url` 指向不存在的端口也能构造成功 |
+| `asetup()` | 异步、必须在首次使用前 await |
+| 跨实例恢复 | CI 用两个独立 saver 验证同一 `thread_id` 能读回 state |
+
+### M1-05 Prompt 层
+
+| 能力 | 实现 | 测试 |
+| --- | --- | --- |
+| Registry | `DbPromptSource`（只认 published）→ `SeedPromptSource`（`seeds/prompts.yaml`）回落；进程内 TTL 缓存；`$var` 模板（避免与 JSON 花括号冲突） | 12 例 |
+| 注入防御 | `<user_input>` 包裹 + 闭合标签转义（大小写不敏感）+ 控制字符清洗 + 4000 字截断 + 系统段安全声明（幂等追加） | 6 例 |
+| 出口脱敏 | 手机号 / 身份证 / 银行卡 / 邮箱打码，返回命中统计；金额、订单号、年份不误伤 | 6 例 |
+| 基线守卫 | `prompts.yaml` 必须含 router 四意图、answer_rag 的 `[[1]]` 引用与"不编造"约束 | 3 例 |
+
+### 本轮修掉的问题
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | 自定义 `PromptRegistry` 与 ORM 模型 `PromptRegistry` 同名，运行时会被覆盖（查询走错类） | ORM 导入别名 `PromptRegistryRow` |
+| 2 | `str.format` 与 prompt 里的 JSON 花括号冲突 | 改用 `string.Template`（`$question`） |
+| 3 | `async def` 里直接读文件触发 ASYNC240 | 抽出同步 `load_prompt_seeds()` |
+| 4 | 脱敏计数用 `subn` 返回 `Any` | 改用 `findall` 计数 + `sub` 替换 |
+
+### 本轮的"未验证"（不许算绿）
+
+| 项 | 原因 | 何时补 |
+| --- | --- | --- |
+| 本地 Redis checkpointer | 本机 Docker Hub 不可达，拉不到 redis 镜像 | 已由 CI 真实 Redis 覆盖 |
+| Prompt 发布/回滚接口 | 属 M3（`/admin/prompts/{key}/publish` + 评测门禁 + 审计） | M3 |
+| 提示词对模型的实际效果 | 需接入图与评测集 | M1-06/M1-10 |
+
+---
+
 ## 迭代 I1 · 第 3 天（2026-10-27）：M1-03/04 索引管道 + 混合召回
 
 | # | 命令 | 结果 |

@@ -194,6 +194,14 @@ jobs:
           IS_PERSISTENT: "FALSE"
           ANONYMIZED_TELEMETRY: "FALSE"
         ports: ["8100:8000"]
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=3s
+          --health-retries=6
     env:
       APP_ENV: dev
       DATABASE_URL: mysql+aiomysql://aftersales:aftersales@127.0.0.1:3306/aftersales?charset=utf8mb4
@@ -216,6 +224,10 @@ jobs:
       - name: migrate
         run: uv run alembic upgrade head
 
-      # 建索引 → 校验条数/版本 → 混合召回 → 关键词单通道，全部走真实 MySQL + Chroma
+      # 建索引 → 校验条数/版本 → 混合召回 → 关键词单通道 → Prompt Registry（DB 源）
       - name: rag smoke
         run: uv run python scripts/rag_smoke.py --version v1
+
+      # Redis checkpointer：跨实例恢复（Spec §6.2 第 5 条 / FR-AS-06）
+      - name: redis checkpoint
+        run: uv run pytest tests/integration/test_checkpoint_redis.py -q -m integration_redis
