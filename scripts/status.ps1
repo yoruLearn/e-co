@@ -1,20 +1,32 @@
-#requires -version 7.0
+#requires -version 5.1
 <#
 .SYNOPSIS
-    打印开发栈健康矩阵 + 探针结果。
+    Show the dev stack health matrix plus probe output.
 #>
 [CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Continue'
+
 $root = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $root 'deploy/docker-compose.yml'
 $envFile = Join-Path $root 'deploy/.env'
 
 Write-Host '=== docker compose ps ===' -ForegroundColor Cyan
-$composeArgs = @('compose', '-f', $composeFile)
-if (Test-Path $envFile) { $composeArgs += @('--env-file', $envFile) } else { $composeArgs += @('--env-file', (Join-Path $root 'deploy/.env.example')) }
-& docker @($composeArgs + @('ps', '--format', 'table {{.Service}}\t{{.Status}}\t{{.Ports}}'))
+$pipes = @('\\.\pipe\docker_engine', '\\.\pipe\dockerDesktopLinuxEngine')
+if (-not ($pipes | Where-Object { Test-Path $_ })) {
+    Write-Warning 'Docker daemon is not running (compose status unavailable); probing local port 8000 only.'
+    $daemonUp = $false
+}
+else {
+    $daemonUp = $true
+}
+else {
+    $composeArgs = @('compose', '-f', $composeFile)
+    if (Test-Path $envFile) { $composeArgs += @('--env-file', $envFile) }
+    else { $composeArgs += @('--env-file', (Join-Path $root 'deploy/.env.example')) }
+    & docker @($composeArgs + @('ps', '--format', 'table {{.Service}}\t{{.Status}}\t{{.Ports}}'))
+}
 
 foreach ($path in @('/healthz', '/readyz')) {
     Write-Host ''
@@ -29,6 +41,7 @@ foreach ($path in @('/healthz', '/readyz')) {
         }
     }
     catch {
-        Write-Warning "$path 请求失败：$($_.Exception.Message)"
+        $msg = $_.Exception.Message
+        Write-Warning "${path} request failed: $msg"
     }
 }

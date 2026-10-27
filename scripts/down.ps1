@@ -1,10 +1,10 @@
-#requires -version 7.0
+#requires -version 5.1
 <#
 .SYNOPSIS
-    停止开发栈；-Volumes 同时删除数据卷（清库/清缓存）。
+    Stop the dev stack. -Volumes also deletes data volumes.
 .EXAMPLE
-    pwsh scripts/down.ps1
-    pwsh scripts/down.ps1 -Volumes -WithObs -WithMq
+    powershell -File scripts/down.ps1
+    powershell -File scripts/down.ps1 -Volumes -WithObs -WithMq
 #>
 [CmdletBinding()]
 param(
@@ -14,6 +14,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
 $root = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $root 'deploy/docker-compose.yml'
 $envFile = Join-Path $root 'deploy/.env'
@@ -22,12 +23,12 @@ $composeArgs = @('compose', '-f', $composeFile)
 if (Test-Path $envFile) { $composeArgs += @('--env-file', $envFile) }
 if ($WithMq) { $composeArgs += @('--profile', 'mq') }
 if ($WithObs) { $composeArgs += @('--profile', 'obs') }
-
-# SSE 长连接先摘流：先停 nginx，再停 api/worker（Spec §17.3 drain）
-& docker compose -f $composeFile down --timeout 30 2>$null | Out-Null
-
-$composeArgs += @('down', '--remove-orphans')
+$composeArgs += @('down', '--remove-orphans', '--timeout', '30')
 if ($Volumes) { $composeArgs += '--volumes' }
+
+Write-Host "[down] docker $($composeArgs -join ' ')"
 & docker @composeArgs
-if ($LASTEXITCODE -ne 0) { throw "[down] docker compose 停止失败（exit $LASTEXITCODE）" }
-Write-Host ('[down] 已停止' + $(if ($Volumes) { '（数据卷已删除）' } else { '（数据卷保留）' }))
+if ($LASTEXITCODE -ne 0) { throw "[down] docker compose down failed (exit $LASTEXITCODE)" }
+
+if ($Volumes) { Write-Host '[down] stack stopped, data volumes removed' }
+else { Write-Host '[down] stack stopped, data volumes kept' }

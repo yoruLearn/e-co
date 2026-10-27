@@ -21,6 +21,8 @@
 | 7 | `python -m app.workers.runner --once` | ✅ exit 0（Redis 不可达时只告警，不崩溃） |
 | 8 | `alembic upgrade head --sql` | ✅ exit 0，生成 `alembic_version` + **9 张业务表**的 DDL |
 | 9 | `python -c "import app.main"` | ✅ 导入成功，13 条路由（含探针与 `/metrics` 挂载） |
+| 10 | `powershell -File scripts/ci.ps1`（Windows PowerShell **5.1**） | ✅ `ALL GATES GREEN`（5 段门禁一次跑完） |
+| 11 | `powershell -File scripts/up.ps1`（daemon 未启动） | ✅ 直接报错退出（exit 1）并给出「先启动 Docker Desktop」提示，不产生误导性堆栈 |
 
 冒烟实际输出（依赖未起，验证降级路径）：
 
@@ -72,13 +74,14 @@ evals/cases/  四类用例 11 条（typical/multi_hop/no_answer/multi_turn）
 
 | 项 | 状态 | 原因 / 后续 |
 | --- | --- | --- |
-| Docker 栈实际起停（mysql/redis/chroma + api/worker + nginx） | ⚠️ 未实测 | 本机 Docker Desktop daemon 未运行；`compose config` 已通过，CI 的 `compose` + `migration` job 会构建镜像并跑真实 MySQL 迁移 |
+| Docker 栈实际起停（mysql/redis/chroma + api/worker + nginx） | ⚠️ 未实测 | 本机 Docker Desktop daemon 未运行（`up.ps1` 的 daemon 守卫已验证会明确报错）；`compose config` 通过，CI 的 `compose` + `migration` job 会构建镜像并在真实 MySQL 上跑迁移 |
 | 镜像构建与 trivy 扫描 | ⚠️ 未实测 | 同上；Dockerfile 为单阶段 python:3.11-slim-bookworm，CI 中执行 |
 | RocketMQ 协议接入 | ⛔ 计划 M2 | M0 仅做 NameServer TCP 探活，避免为无流量能力引入重依赖 |
 | 真实登录 / 用户中心 | ⛔ 计划 M4 | Spec 未定义用户源，不臆造；staging/prod 显式返回 501 |
 | `alembic check`（模型漂移自动检测） | ⏭ 计划 M1 | 先用"表集合三向比对"单测兜底；`alembic check` 需真实库，接入 CI 更合适 |
 | Prometheus 多进程模式 | ⏭ 计划 M3 | 当前 1 进程/副本，双副本由 Prometheus 分别抓取；若改 `--workers > 1` 需 multiprocess 目录 |
 | `/metrics` 访问控制 | ⏭ 计划 M3 | 仅内网暴露（compose 未对公网映射）；生产由 LB/白名单限制 |
+| Windows PowerShell 7 语法实测 | ⏭ 计划 M3 | 本机仅有 PowerShell 5.1；脚本已按 5.1/7 双兼容编写（ASCII 输出、无 PS7 专有 cmdlet） |
 
 ## 5. M0 验收对照（Spec §20「CI 绿灯，一键起停」）
 

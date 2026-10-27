@@ -37,12 +37,14 @@ uv run uvicorn app.main:app --reload --port 8000
 
 ## 2. 一键起停（Docker Compose）
 
-要求：Docker Desktop 已启动（`docker info` 可用）。
+要求：Docker Desktop 已启动。脚本兼容 **Windows PowerShell 5.1 与 PowerShell 7**（输出为 ASCII，
+避免 5.1 把无 BOM 的 UTF-8 脚本按 ANSI 解析）：
 
 ```powershell
-pwsh scripts/up.ps1 -Build          # 起 api/worker/mysql/redis/chroma/nginx，并轮询 /readyz
-pwsh scripts/status.ps1             # 健康矩阵 + 探针明细
-pwsh scripts/down.ps1               # 停栈（加 -Volumes 连数据卷一起删）
+powershell -File scripts/up.ps1 -Build   # 起 api/worker/mysql/redis/chroma/nginx，并轮询 /readyz
+powershell -File scripts/status.ps1      # 健康矩阵 + 探针明细
+powershell -File scripts/down.ps1        # 停栈（加 -Volumes 连数据卷一起删）
+# PowerShell 7 亦可：pwsh -File scripts/up.ps1 -Build
 ```
 
 包含 MQ 与可观测栈：

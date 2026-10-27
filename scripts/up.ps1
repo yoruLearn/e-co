@@ -1,10 +1,13 @@
-#requires -version 7.0
+#requires -version 5.1
 <#
 .SYNOPSIS
-    一键启动 M0 开发栈（api / worker / mysql / redis / chroma / nginx）。
+    Start the M0 dev stack (api / worker / mysql / redis / chroma / nginx).
+.DESCRIPTION
+    ASCII-only output on purpose: Windows PowerShell 5.1 decodes BOM-less UTF-8 scripts
+    as ANSI, which can corrupt Chinese literals and break parsing.
 .EXAMPLE
-    pwsh scripts/up.ps1 -Build
-    pwsh scripts/up.ps1 -WithMq -WithObs
+    powershell -File scripts/up.ps1 -Build
+    pwsh -File scripts/up.ps1 -WithMq -WithObs
 #>
 [CmdletBinding()]
 param(
@@ -15,18 +18,21 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
 $root = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $root 'deploy/docker-compose.yml'
 $envFile = Join-Path $root 'deploy/.env'
 
 if (-not (Test-Path $envFile)) {
     Copy-Item (Join-Path $root 'deploy/.env.example') $envFile
-    Write-Host "[up] 已从 .env.example 生成 deploy/.env（dev 默认值，勿提交）"
+    Write-Host "[up] created deploy/.env from .env.example (dev defaults; do not commit)"
 }
 
-& docker info --format '{{.ServerVersion}}' *> $null
-if ($LASTEXITCODE -ne 0) {
-    throw '[up] Docker daemon 未运行：请先启动 Docker Desktop（compose config 校验不需要 daemon，起栈需要）'
+# Docker Desktop exposes a named pipe; checking it avoids the noisy NativeCommandError
+# that Windows PowerShell 5.1 raises when invoking `docker info` with a dead daemon.
+$pipes = @('\\.\pipe\docker_engine', '\\.\pipe\dockerDesktopLinuxEngine')
+if (-not ($pipes | Where-Object { Test-Path $_ })) {
+    throw '[up] Docker daemon is not running. Start Docker Desktop first (compose config check does not need it, starting the stack does).'
 }
 
 if ($WithMq) { $env:MQ_ENABLED = 'true' }
@@ -39,9 +45,9 @@ if ($Build) { $composeArgs += '--build' }
 
 Write-Host "[up] docker $($composeArgs -join ' ')"
 & docker @composeArgs
-if ($LASTEXITCODE -ne 0) { throw "[up] docker compose 启动失败（exit $LASTEXITCODE）" }
+if ($LASTEXITCODE -ne 0) { throw "[up] docker compose up failed (exit $LASTEXITCODE)" }
 
-Write-Host "[up] 等待 /readyz 就绪（最多 ${TimeoutSec}s）..."
+Write-Host "[up] waiting for /readyz (timeout ${TimeoutSec}s) ..."
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
 $ready = $false
 while ((Get-Date) -lt $deadline) {
@@ -49,7 +55,8 @@ while ((Get-Date) -lt $deadline) {
         $resp = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/readyz' -TimeoutSec 5
         if ($resp.code -eq 0) {
             $ready = $true
-            Write-Host ("[up] ready: " + ($resp.data.checks | ForEach-Object { "$($_.name)=$($_.status)" } -join ', '))
+            $summary = ($resp.data.checks | ForEach-Object { "$($_.name)=$($_.status)" }) -join ', '
+            Write-Host "[up] ready: $summary"
             break
         }
     }
@@ -59,10 +66,10 @@ while ((Get-Date) -lt $deadline) {
 }
 
 if (-not $ready) {
-    Write-Warning "[up] ${TimeoutSec}s 内未就绪，以下为诊断信息："
-    & docker @composeArgs[0..($composeArgs.Length - 1)] ps
+    Write-Warning "[up] not ready within ${TimeoutSec}s, collecting diagnostics:"
+    & docker compose -f $composeFile --env-file $envFile ps
     & docker compose -f $composeFile --env-file $envFile logs --tail 40 api
-    throw '[up] 栈未就绪，请检查 mysql/redis/chroma 日志'
+    throw '[up] stack is not ready. Check mysql/redis/chroma logs.'
 }
 
 Write-Host ''
@@ -70,4 +77,4 @@ Write-Host '  API      : http://127.0.0.1:8000/docs'
 Write-Host '  Nginx    : http://127.0.0.1:8080/healthz'
 Write-Host '  Metrics  : http://127.0.0.1:8000/metrics'
 if ($WithObs) { Write-Host '  Grafana  : http://127.0.0.1:3000 (admin/admin)' }
-Write-Host '  停止     : pwsh scripts/down.ps1'
+Write-Host '  Stop     : powershell -File scripts/down.ps1'
