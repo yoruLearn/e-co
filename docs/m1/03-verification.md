@@ -2,6 +2,65 @@
 
 > 逐迭代留痕：做了什么、跑了什么、数字是多少、哪些是"假绿"必须排除。
 
+## 迭代 I3 · 第 7 天（2026-10-27）：M1-10 评测执行器 + 90 条用例（首次真实评测）
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `ruff check .` / `ruff format --check .` | ✅ 144 文件 |
+| 2 | `mypy app`（strict） | ✅ 86 source files |
+| 3 | `pytest -q --cov=app` | ✅ **491 passed, 10 skipped，覆盖率 83.62%** |
+| 4 | `pytest tests/unit/test_eval_*.py tests/integration/test_eval_api.py` | ✅ 断言/执行器/接口共 40 例 |
+| 5 | **`python -m app.eval.cli run --offline`（真实 DeepSeek + bge 向量，90 条）** | ❌ **门禁未过**：73/90（81.11%），引用 96.23%，P95 4674ms，耗时 215s |
+
+### 真实评测明细（离线：内存索引 + 真实模型 + 真实 embedding）
+
+| 指标 | 数值 | 门禁 | 结论 |
+| --- | --- | --- | --- |
+| 完成率 | **81.11%（73/90）** | ≥85%（Spec）/ 90%（代码默认） | ❌ |
+| 引用正确率 | **96.23%** | ≥95% | ✅ |
+| P95 | **4674ms** | ≤1500ms（缓存命中）/ 单轮生成另计 | ❌（推理模型 + 无缓存，见说明） |
+| 失败归因 | `rewrite 6`、`retrieve 5`、`router 4`、`answer 2` | — | 主要矛盾在多轮改写与多跳召回 |
+
+典型失败（节选）：
+
+- `multi-turn-001`：期望 `query`，实际 `qa`（"那这一单呢"缺订单上下文时被归为知识问答）；
+- `multi-turn-002/009/013/014/019`：改写未发生变化（`rewritten_query == 原句`）；
+- `multi-turn-004`：答案未携带 `[[n]]` 且未改写；
+- 多跳用例（`multi-hop-*`）：`min_citations=2` 未满足，Top-K 只命中 1 条。
+
+> 这是 M1 第一次**用真实数据说话**：81.11% 不是"差一点"，而是明确暴露了
+> rewrite 节点的提示词与 router 的指代类样本不足；修复计划见 `docs/m1/04-handoff.md` §3。
+
+### 本轮交付
+
+| 能力 | 落点 |
+| --- | --- |
+| 90 条用例（40/15/15/20） | `evals/cases/*.json` |
+| 断言 + 归因 | `app/eval/assertions.py`（意图/关键词/引用/兜底/拒绝/改写六维） |
+| 执行器 | `app/eval/executor.py`（P95 最近秩、引用正确率、归因汇总、门禁） |
+| 图执行 | `app/eval/graph_executor.py`（每条用例独立 thread，异常归因 graph） |
+| 接口 | `POST /eval/run`（ops/admin；落 `eval_run` 表，落库失败只告警） |
+| CLI | `python -m app.eval.cli run [--offline] [--limit N] [--categories ...] [--json]` |
+| 离线运行时 | `app/eval/offline.py`（内存向量索引 + 内存 BM25，无需 MySQL/Chroma） |
+
+### 本轮修掉的问题
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | `citations` 存 pydantic 模型触发 LangGraph serde 警告（未来版本拒绝反序列化） | 状态里改存 `dict`，节点输出 `model_dump()` |
+| 2 | 评测用 `SimpleNamespace` 冒充 runtime，lifespan 关闭时 `close()` 报错 | 测试改用带 `graph/checkpointer/close` 的 `FakeRuntime` |
+| 3 | 缓存/单飞改造后 `RetrievalCache` 协议缺失导致 mypy 报未覆盖错误码 | 定义协议并去掉 `type: ignore` |
+
+### 本轮的"未验证"
+
+| 项 | 原因 |
+| --- | --- |
+| staging 真实栈（MySQL + Chroma + 正式语料）评测 | 本机 Docker Hub 不可达；CI 只验证管道连通性，不跑真实模型 |
+| 首 token P95 | 推理模型首正文 ~2.2s；需 M1-12 指标与缓存命中率一起看 |
+| M1-11/12/13/14 | 未开始（见 handoff P1） |
+
+---
+
 ## 迭代 I2 收尾 · 第 6 天（2026-10-27）：M1-07/08/09
 
 | # | 命令 | 结果 |

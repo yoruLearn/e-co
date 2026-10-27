@@ -1,49 +1,22 @@
 [
-  {
-    "case_key": "multi-turn-001",
-    "category": "multi_turn",
-    "input": {
-      "query": "那这一单呢",
-      "history": [
-        {"role": "user", "content": "我的耳机订单能退吗"},
-        {"role": "assistant", "content": "请提供订单号或确认是否为最近一笔订单"}
-      ]
-    },
-    "expectation": {
-      "intent": "query",
-      "rewrite_required": true,
-      "must_resolve_reference": true
-    }
-  },
-  {
-    "case_key": "multi-turn-002",
-    "category": "multi_turn",
-    "input": {
-      "query": "要退",
-      "history": [
-        {"role": "user", "content": "你想退款还是换货"},
-        {"role": "assistant", "content": "请确认处理方式"}
-      ]
-    },
-    "expectation": {
-      "intent": "after_sales",
-      "requires_confirm": true,
-      "action": "refund"
-    }
-  },
-  {
-    "case_key": "multi-turn-003",
-    "category": "multi_turn",
-    "input": {
-      "query": "对，就是质量问题",
-      "history": [
-        {"role": "user", "content": "我想退货"},
-        {"role": "assistant", "content": "请问退货原因是什么"}
-      ]
-    },
-    "expectation": {
-      "intent": "after_sales",
-      "slot_filled": "reason"
-    }
-  }
+  {"case_key": "multi-turn-001", "category": "multi_turn", "input": {"query": "那这一单呢", "history": [{"role": "user", "content": "我的蓝牙耳机订单能退吗"}, {"role": "assistant", "content": "请提供订单号，或确认是最近一笔订单"}]}, "expectation": {"intent": "query", "rewrite_changed": true}},
+  {"case_key": "multi-turn-002", "category": "multi_turn", "input": {"query": "对，就是质量问题", "history": [{"role": "user", "content": "我想退货"}, {"role": "assistant", "content": "请问退货原因是什么"}]}, "expectation": {"intent": "after_sales", "rewrite_changed": true}},
+  {"case_key": "multi-turn-003", "category": "multi_turn", "input": {"query": "那银行卡呢", "history": [{"role": "user", "content": "退款多久到账"}, {"role": "assistant", "content": "余额 1 个工作日，支付宝微信 1-3 个工作日"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true, "keywords": ["工作日"]}},
+  {"case_key": "multi-turn-004", "category": "multi_turn", "input": {"query": "这个也适用吗", "history": [{"role": "user", "content": "七天无理由怎么算"}, {"role": "assistant", "content": "自签收次日起七日内"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true}},
+  {"case_key": "multi-turn-005", "category": "multi_turn", "input": {"query": "那运费谁出", "history": [{"role": "user", "content": "我想退这个耳机"}, {"role": "assistant", "content": "好的，请确认退货原因"}]}, "expectation": {"intent": "after_sales", "rewrite_changed": true}},
+  {"case_key": "multi-turn-006", "category": "multi_turn", "input": {"query": "换货可以吗", "history": [{"role": "user", "content": "耳机有杂音"}, {"role": "assistant", "content": "建议申请售后处理，请问您希望退货还是换货"}]}, "expectation": {"intent": "after_sales", "rewrite_changed": true}},
+  {"case_key": "multi-turn-007", "category": "multi_turn", "input": {"query": "发票呢", "history": [{"role": "user", "content": "我要退货"}, {"role": "assistant", "content": "已了解，退货需要商品完好"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true, "keywords": ["红冲"]}},
+  {"case_key": "multi-turn-008", "category": "multi_turn", "input": {"query": "那这个订单的物流呢", "history": [{"role": "user", "content": "我上周买的耳机还没到"}, {"role": "assistant", "content": "请提供订单号帮您查询"}]}, "expectation": {"intent": "query", "rewrite_changed": true}},
+  {"case_key": "multi-turn-009", "category": "multi_turn", "input": {"query": "要退", "history": [{"role": "user", "content": "你想退款还是换货"}, {"role": "assistant", "content": "请确认处理方式"}]}, "expectation": {"intent": "after_sales", "rewrite_changed": true}},
+  {"case_key": "multi-turn-010", "category": "multi_turn", "input": {"query": "已经拆封了还能退吗", "history": [{"role": "user", "content": "我买的耳机不想要了"}, {"role": "assistant", "content": "无理由退货需要商品完好"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true, "keywords": ["拆封"]}},
+  {"case_key": "multi-turn-011", "category": "multi_turn", "input": {"query": "那换新呢", "history": [{"role": "user", "content": "耳机坏了能修吗"}, {"role": "assistant", "content": "保修期内可免费维修"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true, "keywords": ["保修"]}},
+  {"case_key": "multi-turn-012", "category": "multi_turn", "input": {"query": "多久能到账", "history": [{"role": "user", "content": "退款失败了"}, {"role": "assistant", "content": "请重新提供收款账户"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true, "keywords": ["工作日"]}},
+  {"case_key": "multi-turn-013", "category": "multi_turn", "input": {"query": "那我要退", "history": [{"role": "user", "content": "商品有质量问题"}, {"role": "assistant", "content": "质量问题可换货或维修"}]}, "expectation": {"intent": "after_sales", "rewrite_changed": true}},
+  {"case_key": "multi-turn-014", "category": "multi_turn", "input": {"query": "这个单号的退款进度", "history": [{"role": "user", "content": "我申请退款了"}, {"role": "assistant", "content": "请提供订单号或单号"}]}, "expectation": {"intent": "query", "rewrite_changed": true}},
+  {"case_key": "multi-turn-015", "category": "multi_turn", "input": {"query": "运费呢", "history": [{"role": "user", "content": "东西有问题要退"}, {"role": "assistant", "content": "质量问题由商家承担往返运费"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true, "keywords": ["运费"]}},
+  {"case_key": "multi-turn-016", "category": "multi_turn", "input": {"query": "还能价保吗", "history": [{"role": "user", "content": "我买的耳机降价了"}, {"role": "assistant", "content": "签收 15 天内可申请价保"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true, "keywords": ["价保"]}},
+  {"case_key": "multi-turn-017", "category": "multi_turn", "input": {"query": "换货的话运费谁承担", "history": [{"role": "user", "content": "耳机接触不良"}, {"role": "assistant", "content": "可以申请换货"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true, "keywords": ["运费"]}},
+  {"case_key": "multi-turn-018", "category": "multi_turn", "input": {"query": "要退多少钱", "history": [{"role": "user", "content": "我想退其中一件"}, {"role": "assistant", "content": "部分退货按实付金额比例退款"}]}, "expectation": {"intent": "qa", "rewrite_changed": true, "must_cite": true, "keywords": ["比例"]}},
+  {"case_key": "multi-turn-019", "category": "multi_turn", "input": {"query": "那多久发货", "history": [{"role": "user", "content": "我的订单还没发"}, {"role": "assistant", "content": "预售商品按页面承诺时间发货"}]}, "expectation": {"intent": "query", "rewrite_changed": true}},
+  {"case_key": "multi-turn-020", "category": "multi_turn", "input": {"query": "你们只处理售后吗", "history": [{"role": "user", "content": "能帮我写作业吗"}, {"role": "assistant", "content": "我只处理本平台售后问题"}]}, "expectation": {"intent": "chitchat", "must_refuse": true}}
 ]

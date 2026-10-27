@@ -21,7 +21,6 @@ from langgraph.config import get_stream_writer
 
 from app.agent.citations import (
     build_context_blocks,
-    citation_for_marker,
     has_citation,
     referenced_ids,
     to_citations,
@@ -202,7 +201,7 @@ async def retrieve_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[s
         }
     hits = result.hits
     return {
-        "citations": to_citations(hits),
+        "citations": [citation.model_dump() for citation in to_citations(hits)],
         "context_blocks": build_context_blocks(hits),
         "band": str(result.band),
         "degraded": degraded + list(result.degraded),
@@ -226,11 +225,11 @@ async def answer_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[str
         for marker_id in referenced_ids(text):
             if marker_id in emitted or marker_id > len(citations):
                 continue
-            citation = citation_for_marker(citations, marker_id)
-            if citation is None:
+            citation = citations[marker_id - 1]
+            if not isinstance(citation, dict):
                 continue
             emitted.add(marker_id)
-            writer({"event": "citation", "payload": citation.model_dump()})
+            writer({"event": "citation", "payload": citation})
 
     try:
         rendered = await runtime.prompts.render(

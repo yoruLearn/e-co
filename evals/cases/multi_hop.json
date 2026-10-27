@@ -1,28 +1,17 @@
 [
-  {
-    "case_key": "multi-hop-001",
-    "category": "multi_hop",
-    "input": {
-      "query": "耳机拆封了还能七天无理由退吗，运费谁出",
-      "history": []
-    },
-    "expectation": {
-      "intent": "qa",
-      "must_cite": true,
-      "min_citations": 2
-    }
-  },
-  {
-    "case_key": "multi-hop-002",
-    "category": "multi_hop",
-    "input": {
-      "query": "换货的话库存不足怎么办，能改成退款吗",
-      "history": []
-    },
-    "expectation": {
-      "intent": "qa",
-      "must_cite": true,
-      "keywords": ["换货", "退款"]
-    }
-  }
+  {"case_key": "multi-hop-001", "category": "multi_hop", "input": {"query": "耳机拆封了还能七天无理由退吗，运费谁出", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["拆封", "运费"]}},
+  {"case_key": "multi-hop-002", "category": "multi_hop", "input": {"query": "换货库存不足能改成退款吗", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["补货", "退款"]}},
+  {"case_key": "multi-hop-003", "category": "multi_hop", "input": {"query": "退货后发票红冲了，退款多久到账", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["红冲", "工作日"]}},
+  {"case_key": "multi-hop-004", "category": "multi_hop", "input": {"query": "价保申请后商品又降价了还能再申请吗", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["价保", "多次"]}},
+  {"case_key": "multi-hop-005", "category": "multi_hop", "input": {"query": "部分退货导致不满包邮门槛要补运费吗", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["包邮", "运费"]}},
+  {"case_key": "multi-hop-006", "category": "multi_hop", "input": {"query": "手机激活后发现质量问题，还能换货吗", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["激活", "换货"]}},
+  {"case_key": "multi-hop-007", "category": "multi_hop", "input": {"query": "赠品丢了再退货，退款会扣多少", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["赠品", "扣除"]}},
+  {"case_key": "multi-hop-008", "category": "multi_hop", "input": {"query": "无理由退货的运费险和商家承担运费有什么区别", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["运费险", "商家"]}},
+  {"case_key": "multi-hop-009", "category": "multi_hop", "input": {"query": "生鲜坏了能退吗，运费谁承担", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["生鲜", "运费"]}},
+  {"case_key": "multi-hop-010", "category": "multi_hop", "input": {"query": "定制商品有质量问题，能退还是只能换", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["定作", "换货"]}},
+  {"case_key": "multi-hop-011", "category": "multi_hop", "input": {"query": "保修期内换过部件，保修期怎么算", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["保修", "重新计算"]}},
+  {"case_key": "multi-hop-012", "category": "multi_hop", "input": {"query": "退款失败后重新提供账户，多久能打款", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["账户"]}},
+  {"case_key": "multi-hop-013", "category": "multi_hop", "input": {"query": "拒收之后退款多久到账，运费谁出", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["拒收", "运费"]}},
+  {"case_key": "multi-hop-014", "category": "multi_hop", "input": {"query": "积分抵扣的部分退货会退积分吗，有效期顺延吗", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["积分", "有效期"]}},
+  {"case_key": "multi-hop-015", "category": "multi_hop", "input": {"query": "上门取件和自行寄回的报销规则有什么不同", "history": []}, "expectation": {"intent": "qa", "must_cite": true, "min_citations": 2, "keywords": ["取件", "报销"]}}
 ]

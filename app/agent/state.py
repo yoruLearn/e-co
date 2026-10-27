@@ -59,7 +59,7 @@ class AfterSalesState(TypedDict, total=False):
     slots: dict[str, object]
     missing_slots: list[str]
     tool_results: list[ToolResult]
-    citations: list[Citation]
+    citations: list[dict[str, object]]
     context_blocks: list[str]
     band: str
     degraded: list[str]

@@ -129,6 +129,7 @@ class Settings(BaseSettings):
     rerank_provider: Literal["none", "llm"] = "none"
     keyword_backend: Literal["mysql", "memory"] = "mysql"
     corpus_dir: str = "seeds/corpus"
+    eval_cases_dir: str = "evals/cases"
 
     rag_cache_ttl_sec: int = 300
     faq_cache_ttl_sec: int = 1800

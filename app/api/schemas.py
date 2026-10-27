@@ -154,11 +154,15 @@ class EvalRunRequest(BaseModel):
 
 class EvalRunData(BaseModel):
     run_id: str
-    status: Literal["queued", "running", "succeeded", "failed"] = "queued"
+    status: Literal["queued", "running", "succeeded", "failed", "gate_failed"] = "succeeded"
     total: int = 0
     pass_cnt: int = 0
+    completion_rate: float = 0.0
     citation_acc: float | None = None
     p95_ms: int | None = None
+    gate_passed: bool = True
+    attribution: dict[str, int] = Field(default_factory=dict)
+    duration_ms: int = 0
 
 
 class TraceSpan(BaseModel):

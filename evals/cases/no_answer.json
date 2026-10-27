@@ -1,39 +1,17 @@
 [
-  {
-    "case_key": "no-answer-001",
-    "category": "no_answer",
-    "input": {
-      "query": "帮我写一首关于春天的诗",
-      "history": []
-    },
-    "expectation": {
-      "intent": "chitchat",
-      "must_refuse": true
-    }
-  },
-  {
-    "case_key": "no-answer-002",
-    "category": "no_answer",
-    "input": {
-      "query": "你们公司明年会上市吗",
-      "history": []
-    },
-    "expectation": {
-      "intent": "chitchat",
-      "must_refuse": true,
-      "must_not_fabricate": true
-    }
-  },
-  {
-    "case_key": "no-answer-003",
-    "category": "no_answer",
-    "input": {
-      "query": "跨境订单被海关扣了怎么退",
-      "history": []
-    },
-    "expectation": {
-      "intent": "qa",
-      "must_fallback": true
-    }
-  }
+  {"case_key": "no-answer-001", "category": "no_answer", "input": {"query": "帮我写一首关于春天的诗", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-002", "category": "no_answer", "input": {"query": "今天天气怎么样", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-003", "category": "no_answer", "input": {"query": "你叫什么名字", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-004", "category": "no_answer", "input": {"query": "推荐一部好看的电影", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-005", "category": "no_answer", "input": {"query": "股票明天会涨吗", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-006", "category": "no_answer", "input": {"query": "帮我写一段 Python 爬虫代码", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-007", "category": "no_answer", "input": {"query": "把 hello world 翻译成中文", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-008", "category": "no_answer", "input": {"query": "你是真人客服吗", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-009", "category": "no_answer", "input": {"query": "讲个笑话吧", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-010", "category": "no_answer", "input": {"query": "你们公司的老板是谁", "history": []}, "expectation": {"intent": "chitchat", "must_refuse": true}},
+  {"case_key": "no-answer-011", "category": "no_answer", "input": {"query": "海外仓的维修怎么预约", "history": []}, "expectation": {"intent": "qa", "must_fallback": true}},
+  {"case_key": "no-answer-012", "category": "no_answer", "input": {"query": "延保服务在哪里购买", "history": []}, "expectation": {"intent": "qa", "must_fallback": true}},
+  {"case_key": "no-answer-013", "category": "no_answer", "input": {"query": "上门安装服务怎么申请", "history": []}, "expectation": {"intent": "qa", "must_fallback": true}},
+  {"case_key": "no-answer-014", "category": "no_answer", "input": {"query": "会员积分怎么兑换礼品", "history": []}, "expectation": {"intent": "qa", "must_fallback": true}},
+  {"case_key": "no-answer-015", "category": "no_answer", "input": {"query": "线下门店的售后怎么处理", "history": []}, "expectation": {"intent": "qa", "must_fallback": true}}
 ]

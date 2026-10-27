@@ -163,7 +163,6 @@ def test_unknown_route_returns_as_4040(client: TestClient) -> None:
             },
         ),
         ("get", "/api/v1/traces/tr_0123456789abcdef", "agent_auth", None),
-        ("post", "/api/v1/eval/run", "ops_auth", {"suite": "nightly"}),
         ("get", "/api/v1/admin/dashboard", "admin_auth", None),
         ("post", "/api/v1/admin/breaker", "admin_auth", {"scope": "write", "open": True}),
         ("post", "/api/v1/admin/gray", "admin_auth", {"percent": 10}),

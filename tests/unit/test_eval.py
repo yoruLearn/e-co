@@ -28,9 +28,11 @@ def _write(tmp_path: Path, name: str, payload: object) -> Path:
 
 def test_load_repository_sample_cases() -> None:
     cases = load_cases(CASES_DIR)
-    assert len(cases) >= 4
+    assert len(cases) == 90, "M1 出口要求四类共 90 条用例"
     categories = {case.category for case in cases}
     assert categories == set(EvalCategory)
+    counts = count_by_category(cases)
+    assert counts == {"typical": 40, "multi_hop": 15, "no_answer": 15, "multi_turn": 20}
 
 
 def test_count_by_category_covers_all_four() -> None:
