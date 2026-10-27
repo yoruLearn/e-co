@@ -34,3 +34,6 @@ logs/
 *.log
 loadtest/results/
 .eval-runs/
+
+# ---- 外部工具产物 ----
+.code-reader/
