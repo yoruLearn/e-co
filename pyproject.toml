@@ -123,6 +123,12 @@ plugins = []
 module = ["aiomysql.*", "pymysql.*"]
 ignore_missing_imports = true
 
+# optional extra（local-embed）未安装时不能阻断类型检查：
+# CI 只 sync --extra dev，fastembed/onnxruntime 不存在属于预期
+[[tool.mypy.overrides]]
+module = ["fastembed.*", "onnxruntime.*", "huggingface_hub.*"]
+ignore_missing_imports = true
+
 [[tool.mypy.overrides]]
 module = ["app.migrations.*"]
 strict = false
