@@ -134,21 +134,60 @@ docs/               # 需求分析、tickets、验证、ADR、Runbook
 ## 6. 配置
 
 - 唯一入口 `app/common/config.py`（pydantic-settings），字段与 `deploy/.env.example` 一一对应（有单测守护）。
-- 密钥只接受**文件路径**（`JWT_PUBLIC_KEY_PATH` / `LLM_API_KEY_FILE`），不落镜像层、不进日志。
-- `staging/prod` 使用默认开发密钥或缺少公钥路径 → **启动即失败**。
-- 本地：`cp deploy/.env.example deploy/.env` 后按需修改（`.env` 已 gitignore）。
+- 密钥只接受**文件路径**（`JWT_PUBLIC_KEY_PATH` / `LLM_API_KEY_FILE`），不落镜像层、不进日志；
+  密钥文件支持纯密钥或 `LLM_KEY=sk-...` 两种写法。
+- `staging/prod` 使用默认开发密钥、缺公钥路径、或真实 LLM 缺 key 文件 → **启动即失败**。
+- 两套 env 文件互不干扰：
+  - **本地进程**：读仓库根 `.env`（`cp deploy/.env.example .env`）；
+  - **compose**：读 `deploy/.env` 只用于变量插值，服务配置由 compose `environment:` 注入。
+
+### 6.1 接真实模型（M1）
+
+```bash
+# 1) key 只放文件（已在 .gitignore）
+mkdir -p .secrets && echo "LLM_KEY=sk-你的key" > .secrets/llm_key.txt
+
+# 2) 本地 .env 覆盖（示例）
+cat >> .env <<'EOF'
+LLM_PROVIDER=openai
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-flash
+LLM_API_KEY_FILE=.secrets/llm_key.txt
+EMBEDDING_PROVIDER=fastembed
+EMBEDDING_DIM=512
+HF_ENDPOINT=https://hf-mirror.com
+EOF
+
+# 3) 验真（默认跳过；本地会真调模型，成本极低）
+uv run pytest tests/integration/test_llm_live.py -q
+# 4) 验本地语义向量（首次下载 ~100MB，耐心等 1 分钟）
+RUN_LOCAL_EMBED=1 uv run pytest tests/integration/test_llm_live.py -q -k fastembed
+```
+
+| 变量 | 说明 |
+| --- | --- |
+| `LLM_PROVIDER` | `mock`（CI/离线回放，缺录制即失败）/ `openai`（任意 OpenAI 兼容网关） |
+| `LLM_MODEL` | DeepSeek 实测**必须用** `deepseek-flash`（`DeepSeek-V4.1-Flash` 只是展示名） |
+| `LLM_REASONING_EFFORT` | `low/high/max`；推理模型档位，`low` 可明显降低首字延迟 |
+| `LLM_FALLBACK_MODEL` | 主模型 5xx/超时后自动切备 |
+| `EMBEDDING_PROVIDER` | `hash`（CI，确定性但无语义）/ `fastembed`（本地 bge-small-zh，512 维）/ `api` |
+| `HF_ENDPOINT` | 模型下载镜像；本机直连 huggingface.co 超时，实测 `https://hf-mirror.com` 可用 |
+
+> 依赖说明：本地向量需要 `uv sync --extra local-embed`。`onnxruntime` 钉在 `<1.21`——
+> 1.31 在本机（Win11 / i5-1240P / numpy 2.4）导入即 access violation，1.20.1 正常。
 
 ## 7. 里程碑与下一步
 
 | 里程碑 | 内容 | 状态 |
 | --- | --- | --- |
-| M0 | 脚手架、compose、trace、统一异常、探针 | **本期交付** |
-| M1 | RAG 索引/召回/引用作答、SSE 流式、会话与缓存、`/eval/run` | 待启动 |
+| M0 | 脚手架、compose、trace、统一异常、探针 | ✅ 已交付 |
+| M1 | RAG 索引/召回/引用作答、SSE 流式、会话与缓存、`/eval/run` | 🚧 进行中（I1：provider 已落地） |
 | M2 | 工具 Provider、状态机落库、幂等锁、outbox、HITL 审批 | 待启动 |
 | M3 | 告警值班、灰度回滚、备份恢复演练、压测、看板 API | 待启动 |
 | M4 | 真实接口联调、安全与合规评审、灰度放量 | 待启动 |
 
-详细拆解见 [docs/m0/03-verification.md](docs/m0/03-verification.md) 的「下一步迭代方案」章节。
+- M0 验收记录：[docs/m0/03-verification.md](docs/m0/03-verification.md)
+- M1 方案与进度：[docs/m1/01-plan.md](docs/m1/01-plan.md) · [docs/m1/02-tickets.md](docs/m1/02-tickets.md)
 
 ## 8. 常见问题
 

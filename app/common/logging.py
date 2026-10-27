@@ -184,6 +184,10 @@ def configure_logging(level: str = "INFO", fmt: str = "json", *, force: bool = F
         logger.handlers.clear()
         logger.propagate = True
 
+    # httpx 默认 INFO 会为每个请求打一行（含 URL），对生产是噪音
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 
 def update_log_context(**fields: Any) -> None:
     """合并进程/请求上下文（如 ``env``、``node``），后续日志自动携带。"""
@@ -194,6 +198,11 @@ def update_log_context(**fields: Any) -> None:
 
 def clear_log_context() -> None:
     _CONTEXT.set({})
+
+
+def get_logger(name: str) -> logging.Logger:
+    """统一获取 logger（便于未来挂全局处理器/采样，不在业务里直接 getLogger）。"""
+    return logging.getLogger(name)
 
 
 def sanitize_extra(fields: dict[str, Any]) -> dict[str, Any]:

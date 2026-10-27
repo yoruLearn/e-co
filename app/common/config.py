@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -24,6 +25,28 @@ DEFAULT_DEV_JWT_SECRET = "dev-only-insecure-hs256-secret-change-me"  # noqa: S10
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+_ENV_ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]{1,64})=(.*)$")
+
+
+def parse_secret_text(text: str) -> str:
+    """容错解析密钥文件：纯密钥、env 风格 ``LLM_KEY=sk-...``，或多行 PEM。
+
+    变量名限定全大写，避免把含 ``=`` 的密钥误当赋值；PEM 必须在首行就识别出来，
+    否则会被"第一行优先"截断（RS256 曾因此验签失败）。返回值不做日志输出。
+    """
+    cleaned = text.strip().lstrip("\ufeff")
+    if cleaned.startswith("-----BEGIN"):
+        return cleaned
+    for raw_line in cleaned.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = _ENV_ASSIGNMENT.match(line)
+        if match:
+            return match.group(2).strip().strip('"').strip("'")
+        break  # 首行不是赋值 → 整体视为密钥（可能是多行）
+    return cleaned.strip('"').strip("'")
+
 
 class Settings(BaseSettings):
     """全部运行期配置。
@@ -32,7 +55,9 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=(".env", "deploy/.env"),
+        # 只读仓库根 .env：deploy/.env 是给 compose 做变量插值的，不应反向覆盖本地配置
+        # （两者叠加曾导致 deploy/.env 里的旧 LLM_MODEL 悄悄盖掉根 .env，实测踩过一次）
+        env_file=(".env",),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -73,20 +98,45 @@ class Settings(BaseSettings):
     jwt_issuer: str = "aftersales-agent"
     jwt_ttl_seconds: int = Field(default=3600, ge=60, le=86_400)
 
-    # ---- LLM / RAG（M1 使用，M0 仅占位）----
-    llm_model: str = "gpt-4o-mini"
-    llm_fallback_model: str = "internal-model-b"
-    llm_base_url: str = "http://127.0.0.1:9999/v1"
+    # ---- LLM / RAG（M1）----
+    llm_provider: Literal["mock", "openai"] = "mock"
+    llm_model: str = "deepseek-flash"
+    llm_fallback_model: str = "deepseek-v4-pro"
+    llm_base_url: str = "https://api.deepseek.com"
     llm_api_key_file: str | None = None
-    llm_timeout_ms: int = 8000
+    llm_timeout_ms: int = 15_000
     llm_max_concurrency: int = 8
-    embedding_model: str = "text-embedding-3-small"
+    llm_max_output_tokens: int = Field(default=800, ge=16, le=8192)
+    llm_reasoning_effort: Literal["low", "high", "max"] | None = "low"
+    llm_retry: int = Field(default=1, ge=0, le=3)
+    llm_mock_cassette_dir: str = "evals/cassettes"
+
+    embedding_provider: Literal["hash", "fastembed", "api"] = "hash"
+    embedding_model: str = "BAAI/bge-small-zh-v1.5"
+    embedding_dim: int = Field(default=256, ge=32, le=4096)
+    embedding_api_url: str | None = None
+    hf_endpoint: str = "https://hf-mirror.com"
+
     rag_top1_threshold: float = Field(default=0.75, ge=0, le=1)
     rag_low_threshold: float = Field(default=0.55, ge=0, le=1)
+    rag_top_k_vector: int = Field(default=20, ge=1, le=200)
+    rag_top_k_keyword: int = Field(default=20, ge=1, le=200)
+    rag_top_k_fused: int = Field(default=10, ge=1, le=100)
+    rag_top_k_final: int = Field(default=5, ge=1, le=50)
+    rag_rrf_k: int = Field(default=60, ge=1, le=1000)
+    keyword_backend: Literal["mysql", "memory"] = "mysql"
+    corpus_dir: str = "seeds/corpus"
+
     rag_cache_ttl_sec: int = 300
     faq_cache_ttl_sec: int = 1800
     fact_cache_ttl_sec: int = 600
     session_ttl_hours: int = 24
+    session_window_turns: int = Field(default=10, ge=2, le=50)
+    prompt_cache_ttl_sec: int = 60
+
+    sse_buffer_ttl_sec: int = 300
+    sse_buffer_max_frames: int = 500
+    trace_span_enabled: bool = True
 
     # ---- 业务开关（§9 / §17.5）----
     approval_threshold_cny: float = Field(default=500.0, ge=0)
@@ -123,6 +173,15 @@ class Settings(BaseSettings):
                 "RAG_LOW_THRESHOLD 必须小于 RAG_TOP1_THRESHOLD，"
                 f"当前 {self.rag_low_threshold} >= {self.rag_top1_threshold}"
             )
+        if self.rag_top_k_final > self.rag_top_k_fused:
+            raise ValueError("RAG_TOP_K_FINAL 不能大于 RAG_TOP_K_FUSED")
+        if self.rag_top_k_fused > self.rag_top_k_vector + self.rag_top_k_keyword:
+            raise ValueError("RAG_TOP_K_FUSED 大于两路召回总量，配置无意义")
+        if self.llm_provider == "openai" and self.app_env in ("staging", "prod"):
+            if not self.llm_api_key_file:
+                raise ValueError("staging/prod 使用真实 LLM 时必须配置 LLM_API_KEY_FILE")
+            if self.llm_base_url.startswith("http://127.0.0.1"):
+                raise ValueError("staging/prod 不允许指向本地 mock 地址的 LLM_BASE_URL")
         if self.app_env in ("staging", "prod"):
             if self.jwt_hs256_secret.get_secret_value() == DEFAULT_DEV_JWT_SECRET:
                 raise ValueError(
@@ -164,13 +223,19 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     @staticmethod
     def read_secret_file(path: str | Path | None) -> str | None:
-        """读取密钥文件内容；路径为空返回 None，文件缺失抛 FileNotFoundError（fail-fast）。"""
+        """读取密钥文件内容；路径为空返回 None，文件缺失抛 FileNotFoundError（fail-fast）。
+
+        兼容两种常见写法（不打印、不落日志）：
+
+        - 纯密钥：``sk-xxxx``
+        - env 风格单行：``LLM_KEY=sk-xxxx``（变量名全大写，避免与含 ``=`` 的密钥冲突）
+        """
         if not path:
             return None
         candidate = Path(path)
         if not candidate.is_absolute():
             candidate = REPO_ROOT / candidate
-        return candidate.read_text(encoding="utf-8").strip()
+        return parse_secret_text(candidate.read_text(encoding="utf-8"))
 
     def llm_api_key(self) -> str | None:
         return self.read_secret_file(self.llm_api_key_file)

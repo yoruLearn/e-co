@@ -12,6 +12,7 @@ from app.common.config import (
     REPO_ROOT,
     Settings,
     get_settings,
+    parse_secret_text,
 )
 
 ENV_EXAMPLE = REPO_ROOT / "deploy" / ".env.example"
@@ -128,6 +129,66 @@ def test_read_secret_file(tmp_path: Path) -> None:
     assert Settings.read_secret_file(None) is None
     with pytest.raises(FileNotFoundError):
         Settings.read_secret_file(tmp_path / "missing.txt")
+
+
+def test_parse_secret_text_variants() -> None:
+    assert parse_secret_text("sk-abc") == "sk-abc"
+    assert parse_secret_text("LLM_KEY=sk-abc\n") == "sk-abc"
+    assert parse_secret_text('# comment\n\nLLM_KEY="sk-quoted"\n') == "sk-quoted"
+    assert parse_secret_text("") == ""
+    assert parse_secret_text("\ufeffLLM_API_KEY=sk-bom\n") == "sk-bom"
+
+
+def test_read_secret_file_supports_env_style(tmp_path: Path) -> None:
+    """真实 key 文件常写成 ``LLM_KEY=sk-...``，解析必须兼容。"""
+    key_file = tmp_path / "llm_key.txt"
+    key_file.write_text("LLM_KEY=sk-real-key\n", encoding="utf-8")
+    assert Settings.read_secret_file(key_file) == "sk-real-key"
+
+    settings = Settings(_env_file=None, app_env="test", llm_api_key_file=str(key_file))
+    assert settings.llm_api_key() == "sk-real-key"
+
+
+def test_prod_openai_requires_key_file(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="LLM_API_KEY_FILE"):
+        Settings(
+            _env_file=None,
+            app_env="prod",
+            llm_provider="openai",
+            jwt_algorithm="RS256",
+            jwt_hs256_secret="a" * 40,
+            jwt_public_key_path=str(tmp_path / "jwt.pem"),
+        )
+
+
+def test_prod_rejects_local_llm_base_url(tmp_path: Path) -> None:
+    key_file = tmp_path / "key.txt"
+    key_file.write_text("sk-x", encoding="utf-8")
+    with pytest.raises(ValidationError, match="本地 mock"):
+        Settings(
+            _env_file=None,
+            app_env="prod",
+            llm_provider="openai",
+            llm_base_url="http://127.0.0.1:9999/v1",
+            llm_api_key_file=str(key_file),
+            jwt_algorithm="RS256",
+            jwt_hs256_secret="a" * 40,
+            jwt_public_key_path=str(tmp_path / "jwt.pem"),
+        )
+
+
+def test_rag_top_k_ordering_is_validated() -> None:
+    with pytest.raises(ValidationError, match="RAG_TOP_K_FINAL"):
+        Settings(_env_file=None, rag_top_k_fused=5, rag_top_k_final=10)
+
+
+def test_llm_defaults_target_real_gateway_but_provider_stays_mock() -> None:
+    settings = Settings(_env_file=None)
+    assert settings.llm_provider == "mock"  # 默认离线安全
+    assert settings.llm_model == "deepseek-flash"
+    assert settings.llm_reasoning_effort == "low"
+    assert settings.embedding_provider == "hash"
+    assert settings.hf_endpoint.startswith("https://")
 
 
 def test_settings_are_cached_until_reload() -> None:

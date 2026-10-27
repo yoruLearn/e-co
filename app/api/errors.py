@@ -30,6 +30,7 @@ class ErrorCode(StrEnum):
     NOT_IMPLEMENTED = "AS-5002"
     BREAKER_OPEN = "AS-5031"
     DEPENDENCY_UNAVAILABLE = "AS-5032"
+    UPSTREAM_MODEL_UNAVAILABLE = "AS-5033"
     NOT_FOUND = "AS-4040"
 
 
@@ -52,6 +53,7 @@ ERROR_SPECS: Mapping[ErrorCode, ErrorSpec] = {
     ErrorCode.NOT_IMPLEMENTED: ErrorSpec(501, "该能力尚未实现"),
     ErrorCode.BREAKER_OPEN: ErrorSpec(503, "写链路熔断中，已转人工处理"),
     ErrorCode.DEPENDENCY_UNAVAILABLE: ErrorSpec(503, "依赖组件不可用"),
+    ErrorCode.UPSTREAM_MODEL_UNAVAILABLE: ErrorSpec(503, "模型服务不可用，已降级转人工"),
 }
 
 
