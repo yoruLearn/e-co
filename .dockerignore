@@ -11,4 +11,6 @@ htmlcov
 tests
 docs
 loadtest
+# 文档不参与构建，但 README.md 被 pyproject 的 readme 字段引用，Dockerfile 也会 COPY
 *.md
+!README.md
