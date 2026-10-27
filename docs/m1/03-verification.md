@@ -47,9 +47,24 @@
 
 | 项 | 原因 | 何时补 |
 | --- | --- | --- |
-| `Indexer.build` 对真实 MySQL + Chroma 的端到端 | 本机 Docker daemon 未运行 | 下一轮起栈后跑 `rebuild` + `query`；CI 已有 MySQL，Chroma 服务待加 |
-| MySQL ngram 中文召回效果 | 同上（未连真实库） | 同上一行；离线用 BM25 已验证排序逻辑 |
-| 检索 P95 ≤1.2s | 未接真实 Chroma + 真实 embedding 计时 | 索引联调后压测 |
+| 检索 P95 ≤1.2s | 未在真实 Chroma + 真实 embedding 下计时 | I2 接缓存后压测 |
+| 本地 Docker 起 MySQL/Chroma | 本机 Docker Hub 不可达（`registry-1.docker.io:443` 超时），镜像拉不下来；**不是代码问题** | 改由 CI 覆盖（见下） |
+
+### 真实栈验证：交给 CI（run #9）
+
+新增 job `RAG 端到端（MySQL 8 + Chroma）`：GitHub Actions 起 `mysql:8.0` + `chromadb/chroma:0.5.20`
+服务容器 → `alembic upgrade head` → `scripts/rag_smoke.py`，断言：
+
+| 断言 | 结果 |
+| --- | --- |
+| 迁移建出 `rag_chunk` 且 `ft_rag_chunk`（ngram FULLTEXT）存在 | ✅ |
+| 语料分块数 == `rag_chunk` 行数 | ✅ |
+| `index_version` 变为 active | ✅ |
+| 在线混合召回有命中且 `degraded == []` | ✅ |
+| 关键词单通道（`collection_id=None`）有命中 → ngram 生效 | ✅ |
+
+> 结论：M1-03/04 的**管道连通性**已由真实 MySQL 8 + Chroma 验证；检索**质量**由本地
+> fastembed 抽样（上文 6 例）与 M1-10 的 90 条评测负责，两者不混为一谈。
 
 ---
 
