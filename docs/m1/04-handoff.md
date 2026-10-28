@@ -83,7 +83,9 @@
 | --- | --- |
 | staging 真实栈评测（MySQL + Chroma + 正式语料，90 条） | 本机 Docker Hub 不可达；需在有 Docker 的环境跑 `python -m app.eval.cli run --suite nightly`（非 `--offline`） |
 | 首片段 P95 压测 | 指标 `chat_first_token_seconds{mode}` 已接线；需在 staging 用缓存命中/未命中两组样本出曲线 |
-| CI 全绿确认 | 本地 506 passed / 83.29%；CI 6 job（新增 eval-sampling）待本次提交验证 |
+| CI 全绿确认 | 本地 506 passed / 83.29%；CI run #19 已 6/6 全绿 |
+| **无答案 100% 兜底（出口门禁）** | 当前 10/15（5 条越界被作答）→ 未达标；与 §3 P2 的可答性分类器是同一件事，必须在 M1 收尾前解决或由用户确认降级为 staging 项 |
+| 缓存收益 ≥60% / 端到端 P95 ≤1.5s | 未压测；需要 staging + 命中/未命中两组样本 |
 
 ### P2 · 已知质量缺口（M2）
 
