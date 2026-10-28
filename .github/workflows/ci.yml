@@ -225,7 +225,16 @@ jobs:
           enable-cache: true
       - run: uv sync --extra dev
       - name: mysql integration (concurrency/transition/approval)
-        run: uv run pytest -m mysql -q
+        run: |
+          set +e
+          uv run pytest -m mysql -q --tb=short > pytest-mysql.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            echo "::error::pytest mysql failed (exit $code)"
+            body=$(tail -n 30 pytest-mysql.log | tr '\n' '|' | cut -c1-3500)
+            echo "::error::${body}"
+          fi
+          exit $code
 
   rag-integration:
     name: RAG 端到端（MySQL 8 + Chroma）
