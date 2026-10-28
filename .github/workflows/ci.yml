@@ -70,7 +70,7 @@ jobs:
     env:
       LLM_PROVIDER: mock
       EMBEDDING_PROVIDER: hash
-      LOG_LEVEL: WARNING
+      LOG_LEVEL: ERROR
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

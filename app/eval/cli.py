@@ -102,7 +102,8 @@ async def _amain(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     settings = get_settings()
-    configure_logging(settings.log_level, "console")
+    # --json 时 stdout 只能有 JSON：日志压到 ERROR（避免 WARNING 行混进报告）
+    configure_logging("ERROR" if args.json else settings.log_level, "console")
     cases_dir = Path(args.cases_dir or settings.eval_cases_dir)
     cases = filter_cases(load_cases(cases_dir), _parse_categories(args.categories))
     if args.limit:
