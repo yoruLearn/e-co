@@ -1,17 +1,17 @@
 """订单只读查询（工作台，Spec §9.2 ``GET /orders/{order_id}``）。
 
-M0 只挂契约；真实 Provider 适配与越权校验在 M2/M4（§21 Q1：staging 联调是上线硬条件）。
+M2：走只读工具（Mock Provider）；buyer 仅限本人订单，agent 可查任意。
+真实 Provider 适配在 M4（§21 Q1：staging 联调是上线硬条件）。
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.api.deps import PrincipalDep
-from app.api.errors import not_implemented
-from app.api.responses import ERROR_RESPONSES, SuccessEnvelope
+from app.api.responses import ERROR_RESPONSES, SuccessEnvelope, ok
 from app.api.schemas import OrderData
 
 router = APIRouter(prefix="/orders", tags=["orders"], responses=ERROR_RESPONSES)
@@ -22,6 +22,7 @@ router = APIRouter(prefix="/orders", tags=["orders"], responses=ERROR_RESPONSES)
     summary="订单只读查询（工作台）",
     response_model=SuccessEnvelope[OrderData],
 )
-async def get_order(order_id: str, principal: PrincipalDep) -> dict[str, Any]:
-    # TODO(M2): Provider 适配 + buyer 仅限本人订单（§8.2 分级授权）
-    not_implemented("订单查询（Provider 适配）", "M2")
+async def get_order(order_id: str, principal: PrincipalDep, request: Request) -> dict[str, Any]:
+    tools = request.app.state.order_tools
+    result = await tools.get_order(order_id, user_id=principal.user_id, role=principal.role.value)
+    return ok(OrderData(**result.data).model_dump())

@@ -150,6 +150,7 @@ class Settings(BaseSettings):
 
     # ---- 业务开关（§9 / §17.5）----
     approval_threshold_cny: float = Field(default=500.0, ge=0)
+    approval_callback_secret: SecretStr = SecretStr("dev-approval-secret-change-me")
     write_error_breaker_ratio: float = Field(default=0.5, ge=0, le=1)
     breaker_window_sec: int = 60
     idle_approval_expire_hours: int = 24

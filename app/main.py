@@ -30,8 +30,13 @@ from app.common.clients import AppClients, build_clients
 from app.common.config import Settings, get_settings
 from app.common.logging import configure_logging, update_log_context
 from app.common.metrics import APP_INFO
+from app.services.aftersales import AfterSalesService
+from app.services.approval import ApprovalService
+from app.services.confirm import ConfirmTokenService
 from app.services.health import ReadinessService, build_readiness_service
+from app.services.idempotency_store import RedisIdempotencyStore
 from app.services.ratelimit import RateLimiter
+from app.tools.orders import MockOrderProvider, OrderTools
 
 logger = logging.getLogger("app.main")
 
@@ -126,6 +131,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.clients = clients
     app.state.readiness = readiness
     app.state.agent = build_agent_runtime(settings, clients)
+    app.state.order_tools = OrderTools(MockOrderProvider())
+    app.state.aftersales = AfterSalesService(clients.session_factory, settings=settings)
+    app.state.approval = ApprovalService(clients.session_factory, settings=settings)
+    app.state.confirm = ConfirmTokenService(clients.redis)
+    app.state.idem = RedisIdempotencyStore(clients.redis)
     app.state.ratelimit = RateLimiter(
         clients.redis,
         limit_per_min=settings.user_rate_limit_per_min,

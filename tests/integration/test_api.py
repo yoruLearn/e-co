@@ -20,13 +20,8 @@ EXPECTED_PATHS = {
     "/healthz",
     "/readyz",
     "/api/v1/chat/stream",
-    "/api/v1/aftersales/{biz_id}",
-    "/api/v1/aftersales/apply",
-    "/api/v1/aftersales/{biz_id}/cancel",
-    "/api/v1/approval/callback",
     "/api/v1/eval/run",
     "/api/v1/auth/login",
-    "/api/v1/orders/{order_id}",
     "/api/v1/admin/prompts/{key}/publish",
     "/api/v1/admin/index/{version}/activate",
     "/api/v1/admin/breaker",
@@ -148,19 +143,6 @@ def test_unknown_route_returns_as_4040(client: TestClient) -> None:
 @pytest.mark.parametrize(
     ("method", "path", "auth_fixture", "payload"),
     [
-        ("get", "/api/v1/aftersales/AS20261027001", "buyer_auth", None),
-        ("post", "/api/v1/aftersales/AS20261027001/cancel", "buyer_auth", {}),
-        ("get", "/api/v1/orders/O2026102588", "buyer_auth", None),
-        (
-            "post",
-            "/api/v1/approval/callback",
-            None,
-            {
-                "approval_task_id": "ap_1",
-                "decision": "approve",
-                "approver": "u_889",
-            },
-        ),
         ("get", "/api/v1/admin/dashboard", "admin_auth", None),
         ("post", "/api/v1/admin/breaker", "admin_auth", {"scope": "write", "open": True}),
         ("post", "/api/v1/admin/gray", "admin_auth", {"percent": 10}),
@@ -216,8 +198,9 @@ def test_apply_after_sales_with_confirm_and_idempotency_key(
     }
     headers = {**buyer_auth, "Idempotency-Key": "AS20261027001:create"}
     response = client.post("/api/v1/aftersales/apply", json=payload, headers=headers)
-    assert response.status_code == 501
-    assert response.json()["code"] == "AS-5002"
+    # 订单不在 Provider 中：先于幂等/确认令牌返回 404
+    assert response.status_code == 404
+    assert response.json()["code"] == "AS-4040"
 
 
 def test_apply_rejects_bad_idempotency_key(client: TestClient, buyer_auth: dict[str, str]) -> None:

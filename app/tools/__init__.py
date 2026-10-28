@@ -1,1 +1,5 @@
-"""业务工具层：只读/写分级注册表。"""
+"""工具层：只读查询（M2）。"""
+
+from app.tools.orders import MockOrderProvider, Order, OrderProvider, OrderTools, ToolResult
+
+__all__ = ["MockOrderProvider", "Order", "OrderProvider", "OrderTools", "ToolResult"]
