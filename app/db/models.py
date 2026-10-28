@@ -298,6 +298,32 @@ class RagChunk(Base):
     )
 
 
+class TraceSpan(Base):
+    """M1：图节点级调用树（Spec §13.4）。"""
+
+    __tablename__ = "trace_span"
+    __table_args__ = (
+        Index("idx_trace_span_trace", "trace_id", "start_ms"),
+        _MYSQL_TABLE_OPTIONS,
+    )
+
+    id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)
+    trace_id: Mapped[str] = mapped_column(CHAR(36), nullable=False)
+    node: Mapped[str] = mapped_column(String(32), nullable=False)
+    start_ms: Mapped[int] = mapped_column(BIGINT(unsigned=True), nullable=False)
+    duration_ms: Mapped[int] = mapped_column(INTEGER(unsigned=True), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="ok", server_default=text("'ok'")
+    )
+    tokens: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True), nullable=False, default=0, server_default=text("0")
+    )
+    meta: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DATETIME(fsp=3), nullable=False, server_default=_NOW_MS
+    )
+
+
 ALL_MODELS = (
     AfterSalesBiz,
     AfterSalesTransition,
@@ -309,6 +335,7 @@ ALL_MODELS = (
     EvalRun,
     ToolAudit,
     RagChunk,
+    TraceSpan,
 )
 
 #: Spec §10.1 的 9 张 M0 表（契约测试基准，不得被 M1 增量污染）
@@ -327,6 +354,6 @@ EXPECTED_TABLES = frozenset(
 )
 
 #: M1 增量表（每个里程碑新增表必须登记在此，并配一条迁移）
-M1_TABLES = frozenset({"rag_chunk"})
+M1_TABLES = frozenset({"rag_chunk", "trace_span"})
 
 ALL_TABLES = EXPECTED_TABLES | M1_TABLES

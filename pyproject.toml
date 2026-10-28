@@ -112,6 +112,7 @@ ignore = [
 "app/prompt/seed.py" = ["T201"]      # 同上
 "app/eval/cli.py" = ["T201"]          # 同上
 "app/eval/offline.py" = ["ARG002"]    # NullSessionStore 保持协议签名
+"app/services/trace_store.py" = ["ARG002"]  # NullTraceRecorder 保持协议签名
 # 图节点与协议实现必须保持固定签名：占位参数（runtime/state/name 等）不可避免
 "app/agent/nodes/core.py" = ["ARG001", "ARG002"]
 "app/agent/runtime.py" = ["ARG002"]

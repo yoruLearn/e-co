@@ -12,6 +12,8 @@ M1 的图只覆盖问答链路；``query``/``after_sales`` 走 ``pending_capabil
 
 from __future__ import annotations
 
+import time
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Final
 
 from langgraph.graph import END, START, StateGraph
@@ -59,29 +61,53 @@ def build_graph(runtime: AgentRuntime) -> Any:
     """编译状态图；节点用闭包持有 runtime（依赖可替换，便于测试注入 Fake）。"""
     graph = StateGraph(AfterSalesState)
 
+    async def timed(
+        node_name: str,
+        state: AfterSalesState,
+        handler: Callable[[], Awaitable[dict[str, Any]]],
+    ) -> dict[str, Any]:
+        """记录节点耗时；trace 写失败不影响节点结果。"""
+        started_ms = int(time.time() * 1000)
+        started = time.perf_counter()
+        status = "ok"
+        try:
+            return await handler()
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            await runtime.trace.record(
+                trace_id=str(state.get("trace_id") or ""),
+                node=node_name,
+                start_ms=started_ms,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+                status=status,
+                meta={"session_id": str(state.get("session_id") or "")},
+            )
+
     async def router(state: AfterSalesState) -> dict[str, Any]:
-        return await core.router_node(runtime, state)
+        return await timed("router", state, lambda: core.router_node(runtime, state))
 
     async def rewrite(state: AfterSalesState) -> dict[str, Any]:
-        return await core.rewrite_node(runtime, state)
+        return await timed("rewrite", state, lambda: core.rewrite_node(runtime, state))
 
     async def retrieve(state: AfterSalesState) -> dict[str, Any]:
-        return await core.retrieve_node(runtime, state)
+        return await timed("retrieve", state, lambda: core.retrieve_node(runtime, state))
 
     async def answer(state: AfterSalesState) -> dict[str, Any]:
-        return await core.answer_node(runtime, state)
+        return await timed("answer", state, lambda: core.answer_node(runtime, state))
 
     async def clarify(state: AfterSalesState) -> dict[str, Any]:
-        return await core.clarify_node(runtime, state)
+        return await timed("clarify", state, lambda: core.clarify_node(runtime, state))
 
     async def reject(state: AfterSalesState) -> dict[str, Any]:
-        return await core.reject_node(runtime, state)
+        return await timed("reject", state, lambda: core.reject_node(runtime, state))
 
     async def pending_capability(state: AfterSalesState) -> dict[str, Any]:
-        return await core.pending_node(runtime, state)
+        return await timed("pending_capability", state, lambda: core.pending_node(runtime, state))
 
     async def sse_out(state: AfterSalesState) -> dict[str, Any]:
-        return await core.sse_out_node(runtime, state)
+        return await timed("sse_out", state, lambda: core.sse_out_node(runtime, state))
 
     graph.add_node("router", router)
     graph.add_node("rewrite", rewrite)

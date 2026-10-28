@@ -52,7 +52,24 @@ PENDING_TEXT = (
 )
 
 _AFTER_SALES_HINTS = ("我要退", "申请售后", "帮我退", "退货申请", "换货", "退掉", "要退")
-_QUERY_HINTS = ("我的订单", "这单", "到哪了", "进度", "物流", "快递", "发货", "签收", "单号")
+_QUERY_HINTS = (
+    "我的订单",
+    "这单",
+    "这一单",
+    "这个订单",
+    "这笔",
+    "那单",
+    "到哪了",
+    "进度",
+    "物流",
+    "快递",
+    "发货",
+    "签收",
+    "单号",
+    "多久发货",
+    "几天发货",
+    "什么时候发货",
+)
 _QA_HINTS = (
     "政策",
     "规则",
@@ -68,6 +85,8 @@ _QA_HINTS = (
 )
 _GREETING_HINTS = ("你好", "您好", "在吗", "hi", "hello", "谢谢", "再见")
 _PUNCT = re.compile(r"[\s。！？?!.，,；;]")
+_PRONOUN = re.compile("这个|那这个|这一单|那这一单|这笔|那笔|该订单|它|也适用|呢$")
+_MAX_REWRITE_CHARS = 200
 
 
 def _writer() -> Callable[[dict[str, Any]], None]:
@@ -75,6 +94,34 @@ def _writer() -> Callable[[dict[str, Any]], None]:
         return get_stream_writer()
     except Exception:
         return lambda _payload: None
+
+
+def _last_user_topic(history: list[dict[str, str]]) -> str:
+    for item in reversed(history):
+        if item.get("role") == "user" and item.get("content"):
+            return str(item["content"]).strip()
+    return ""
+
+
+def rule_rewrite(question: str, history: list[dict[str, str]]) -> str:
+    """模型改写失败时的确定性兜底：把上一轮用户话题与当前句拼接。
+
+    只在"当前句含指代/非常短"时启用，避免把已经自包含的问题也改得啰嗦。
+    """
+    topic = _last_user_topic(history)
+    if not topic:
+        return question
+    cleaned = _PUNCT.sub("", question or "")
+    needs_context = bool(_PRONOUN.search(question or "")) or len(cleaned) <= 6
+    if not needs_context or topic == question:
+        return question
+    return f"{topic}；{question}"[:_MAX_REWRITE_CHARS]
+
+
+def is_meaningful_rewrite(candidate: str, question: str) -> bool:
+    left = _PUNCT.sub("", candidate or "")
+    right = _PUNCT.sub("", question or "")
+    return bool(left) and left != right
 
 
 def history_text(history: list[dict[str, str]], *, max_turns: int = 6) -> str:
@@ -173,8 +220,11 @@ async def rewrite_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[st
                 REWRITE_TIMEOUT_S,
             )
             candidate = result.content.strip().strip('"').strip("“”")
-            if candidate:
+            if is_meaningful_rewrite(candidate, question):
                 rewritten = candidate
+            else:
+                degraded.append("rewrite:rule_fallback")
+                rewritten = rule_rewrite(question, history)
         except (TimeoutError, LLMError) as exc:
             degraded.append(f"rewrite:{type(exc).__name__}")
     return {"rewritten_query": rewritten, "degraded": degraded}

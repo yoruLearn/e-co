@@ -24,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATION_DIR = REPO_ROOT / "app" / "migrations" / "versions"
 INITIAL_MIGRATION = MIGRATION_DIR / "0001_m0_initial_schema.py"
 RAG_CHUNK_MIGRATION = MIGRATION_DIR / "0002_rag_chunk.py"
+TRACE_SPAN_MIGRATION = MIGRATION_DIR / "0003_trace_span.py"
 
 
 def _created_tables(path: Path) -> set[str]:
@@ -43,7 +44,7 @@ def test_models_cover_spec_and_m1_tables() -> None:
 
 
 def test_m1_increment_is_declared_explicitly() -> None:
-    assert {"rag_chunk"} == M1_TABLES
+    assert {"rag_chunk", "trace_span"} == M1_TABLES
     assert M1_TABLES.isdisjoint(EXPECTED_TABLES)
 
 
@@ -56,8 +57,13 @@ def test_initial_migration_drop_covers_every_spec_table() -> None:
 
 
 def test_rag_chunk_migration_matches_model() -> None:
-    assert _created_tables(RAG_CHUNK_MIGRATION) == set(M1_TABLES)
-    assert _dropped_tables(RAG_CHUNK_MIGRATION) == set(M1_TABLES)
+    assert _created_tables(RAG_CHUNK_MIGRATION) == {"rag_chunk"}
+    assert _dropped_tables(RAG_CHUNK_MIGRATION) == {"rag_chunk"}
+
+
+def test_trace_span_migration_matches_model() -> None:
+    assert _created_tables(TRACE_SPAN_MIGRATION) == {"trace_span"}
+    assert _dropped_tables(TRACE_SPAN_MIGRATION) == {"trace_span"}
 
 
 def test_all_migrations_union_equals_all_tables() -> None:
@@ -118,17 +124,19 @@ def test_alembic_head_is_latest_migration() -> None:
     config = Config()
     config.set_main_option("script_location", str(REPO_ROOT / "app" / "migrations"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_current_head() == "0002_rag_chunk"
+    assert script.get_current_head() == "0003_trace_span"
     revisions = list(script.walk_revisions())
-    assert len(revisions) == 2
+    assert len(revisions) == 3
 
 
 def test_alembic_revision_chain_is_linear() -> None:
     config = Config()
     config.set_main_option("script_location", str(REPO_ROOT / "app" / "migrations"))
     script = ScriptDirectory.from_config(config)
-    head = script.get_revision("0002_rag_chunk")
-    assert head.down_revision == "0001_m0_initial"
+    head = script.get_revision("0003_trace_span")
+    assert head.down_revision == "0002_rag_chunk"
+    previous = script.get_revision("0002_rag_chunk")
+    assert previous.down_revision == "0001_m0_initial"
     base = script.get_revision("0001_m0_initial")
     assert base.down_revision is None
 
@@ -138,3 +146,4 @@ def test_settings_migrations_dir_points_to_alembic_scripts() -> None:
     assert (settings.migrations_dir / "env.py").exists()
     assert (settings.migrations_dir / "versions" / "0001_m0_initial_schema.py").exists()
     assert (settings.migrations_dir / "versions" / "0002_rag_chunk.py").exists()
+    assert (settings.migrations_dir / "versions" / "0003_trace_span.py").exists()

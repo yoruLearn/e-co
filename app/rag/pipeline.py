@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
@@ -25,6 +26,31 @@ from app.rag.keyword import KeywordHit, KeywordIndex, normalize_scores
 from app.rag.retriever import ConfidenceBand, classify_confidence, reciprocal_rank_fusion
 
 logger = get_logger("app.rag.pipeline")
+
+logger = get_logger("app.rag.pipeline")
+
+_PUNCT_RE = re.compile(r"[\s，。！？、；：,.!?;:（）()\[\]【】\"'“”‘’]+")
+
+
+def _bigrams(text: str) -> set[str]:
+    cleaned = _PUNCT_RE.sub("", text or "")
+    return {cleaned[i : i + 2] for i in range(len(cleaned) - 1)}
+
+
+def query_coverage(query: str, hits: list[RetrievalHit], *, top_n: int = 3) -> float:
+    """查询的中文 2-gram 在前 N 条资料里的覆盖率。
+
+    为什么需要它：向量/BM25 对"看起来很售后"的越界问题（如"海外仓维修预约"）
+    仍会给 0.55-0.61 的分数，落入"带保留作答"档，模型就会拿不相干政策硬答。
+    覆盖率低 = 语料里根本没有对应表述，应走兜底而不是编。
+    """
+    query_grams = _bigrams(query)
+    if not query_grams:
+        return 1.0
+    doc_grams: set[str] = set()
+    for hit in hits[:top_n]:
+        doc_grams |= _bigrams(f"{hit.title}{hit.section}{hit.content}")
+    return len(query_grams & doc_grams) / len(query_grams)
 
 
 @dataclass(frozen=True, slots=True)

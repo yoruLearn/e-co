@@ -31,6 +31,7 @@ from app.rag.chroma import ChromaVectorIndex, VectorHit
 from app.rag.chunker import collection_name
 from app.rag.keyword import EmptyKeywordIndex, KeywordIndex, MysqlKeywordIndex
 from app.rag.pipeline import HybridRetriever, LlmReranker, NoopReranker
+from app.services.trace_store import NullTraceRecorder, TraceRecorder
 from app.session.store import SessionStore
 from app.session.summarize import SessionSummarizer
 
@@ -51,6 +52,7 @@ class AgentRuntime:
     clients: AppClients | None = None
     sse_buffer: SseBuffer = field(default_factory=lambda: SseBuffer(None))
     cache: TwoLevelCache | None = None
+    trace: TraceRecorder | NullTraceRecorder = field(default_factory=NullTraceRecorder)
     _collection_cache: dict[str, str] = field(default_factory=dict)
     _last_index_version: str | None = None
 
@@ -165,6 +167,7 @@ def build_agent_runtime(settings: Settings, clients: AppClients) -> AgentRuntime
             max_frames=settings.sse_buffer_max_frames,
         ),
         cache=cache,
+        trace=TraceRecorder(clients.session_factory),
     )
     runtime.graph = build_graph(runtime)
     return runtime

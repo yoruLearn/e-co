@@ -73,8 +73,13 @@ def check_expectations(
     band = str(values.get("band", ""))
 
     expected_intent = expected.get("intent")
+    allowed_intents = expected.get("intent_any")
     actual_intent = str(values.get("intent", ""))
-    if expected_intent and actual_intent != expected_intent:
+    if isinstance(allowed_intents, list) and allowed_intents:
+        if actual_intent not in [str(item) for item in allowed_intents]:
+            failures.append(f"意图不符：期望 {allowed_intents} 之一，实际 {actual_intent}")
+            attribution = attribution or "router"
+    elif expected_intent and actual_intent != expected_intent:
         failures.append(f"意图不符：期望 {expected_intent}，实际 {actual_intent}")
         attribution = attribution or "router"
 

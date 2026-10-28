@@ -1,42 +1,581 @@
 [
-  {"case_key": "typical-001", "category": "typical", "input": {"query": "七天无理由退货从哪天开始算", "history": []}, "expectation": {"intent": "qa", "keywords": ["签收", "七"], "must_cite": true, "min_citations": 1}},
-  {"case_key": "typical-002", "category": "typical", "input": {"query": "七天无理由的商品完好是什么意思", "history": []}, "expectation": {"intent": "qa", "keywords": ["完好", "配件"], "must_cite": true}},
-  {"case_key": "typical-003", "category": "typical", "input": {"query": "哪些商品不支持七天无理由退货", "history": []}, "expectation": {"intent": "qa", "keywords": ["定作", "生鲜"], "must_cite": true}},
-  {"case_key": "typical-004", "category": "typical", "input": {"query": "退款一般多久到账", "history": []}, "expectation": {"intent": "qa", "keywords": ["工作日", "原路"], "must_cite": true}},
-  {"case_key": "typical-005", "category": "typical", "input": {"query": "银行卡退款要几天", "history": []}, "expectation": {"intent": "qa", "keywords": ["工作日"], "must_cite": true}},
-  {"case_key": "typical-006", "category": "typical", "input": {"query": "信用卡退款多久入账", "history": []}, "expectation": {"intent": "qa", "keywords": ["发卡行", "工作日"], "must_cite": true}},
-  {"case_key": "typical-007", "category": "typical", "input": {"query": "无理由退货的运费谁承担", "history": []}, "expectation": {"intent": "qa", "keywords": ["消费者", "运费"], "must_cite": true}},
-  {"case_key": "typical-008", "category": "typical", "input": {"query": "质量问题退货运费谁出", "history": []}, "expectation": {"intent": "qa", "keywords": ["商家", "运费"], "must_cite": true}},
-  {"case_key": "typical-009", "category": "typical", "input": {"query": "运费险怎么赔", "history": []}, "expectation": {"intent": "qa", "keywords": ["首重"], "must_cite": true}},
-  {"case_key": "typical-010", "category": "typical", "input": {"query": "拆开包装还能七天无理由吗", "history": []}, "expectation": {"intent": "qa", "keywords": ["拆封", "二次销售"], "must_cite": true}},
-  {"case_key": "typical-011", "category": "typical", "input": {"query": "手机激活了还能退吗", "history": []}, "expectation": {"intent": "qa", "keywords": ["激活", "已使用"], "must_cite": true}},
-  {"case_key": "typical-012", "category": "typical", "input": {"query": "耳机试戴后还能退货吗", "history": []}, "expectation": {"intent": "qa", "keywords": ["耳塞", "清洁"], "must_cite": true}},
-  {"case_key": "typical-013", "category": "typical", "input": {"query": "退货时赠品要退回吗", "history": []}, "expectation": {"intent": "qa", "keywords": ["赠品", "扣除"], "must_cite": true}},
-  {"case_key": "typical-014", "category": "typical", "input": {"query": "退货后发票怎么处理", "history": []}, "expectation": {"intent": "qa", "keywords": ["红冲"], "must_cite": true}},
-  {"case_key": "typical-015", "category": "typical", "input": {"query": "电子发票可以重开吗", "history": []}, "expectation": {"intent": "qa", "keywords": ["重开", "红冲"], "must_cite": true}},
-  {"case_key": "typical-016", "category": "typical", "input": {"query": "专票退货要提供什么", "history": []}, "expectation": {"intent": "qa", "keywords": ["红字信息表", "专票"], "must_cite": true}},
-  {"case_key": "typical-017", "category": "typical", "input": {"query": "价保怎么申请", "history": []}, "expectation": {"intent": "qa", "keywords": ["15", "差价"], "must_cite": true}},
-  {"case_key": "typical-018", "category": "typical", "input": {"query": "价保可以申请几次", "history": []}, "expectation": {"intent": "qa", "keywords": ["多次", "实付金额"], "must_cite": true}},
-  {"case_key": "typical-019", "category": "typical", "input": {"query": "保修期多久", "history": []}, "expectation": {"intent": "qa", "keywords": ["一年", "两年"], "must_cite": true}},
-  {"case_key": "typical-020", "category": "typical", "input": {"query": "人为损坏能保修吗", "history": []}, "expectation": {"intent": "qa", "keywords": ["有偿", "人为"], "must_cite": true}},
-  {"case_key": "typical-021", "category": "typical", "input": {"query": "换货库存不足怎么办", "history": []}, "expectation": {"intent": "qa", "keywords": ["补货", "退货退款"], "must_cite": true}},
-  {"case_key": "typical-022", "category": "typical", "input": {"query": "换其他规格需要补差价吗", "history": []}, "expectation": {"intent": "qa", "keywords": ["差价", "多退少补"], "must_cite": true}},
-  {"case_key": "typical-023", "category": "typical", "input": {"query": "部分退货金额怎么算", "history": []}, "expectation": {"intent": "qa", "keywords": ["比例", "实付"], "must_cite": true}},
-  {"case_key": "typical-024", "category": "typical", "input": {"query": "部分退款会退运费吗", "history": []}, "expectation": {"intent": "qa", "keywords": ["不"], "must_cite": true}},
-  {"case_key": "typical-025", "category": "typical", "input": {"query": "退款失败怎么办", "history": []}, "expectation": {"intent": "qa", "keywords": ["账户", "人工"], "must_cite": true}},
-  {"case_key": "typical-026", "category": "typical", "input": {"query": "上门取件要收费吗", "history": []}, "expectation": {"intent": "qa", "keywords": ["取件", "运费"], "must_cite": true}},
-  {"case_key": "typical-027", "category": "typical", "input": {"query": "退货地址在哪里看", "history": []}, "expectation": {"intent": "qa", "keywords": ["售后", "运单号"], "must_cite": true}},
-  {"case_key": "typical-028", "category": "typical", "input": {"query": "忘记填运单号会怎样", "history": []}, "expectation": {"intent": "qa", "keywords": ["关闭", "运单号"], "must_cite": true}},
-  {"case_key": "typical-029", "category": "typical", "input": {"query": "我的退款到哪了", "history": []}, "expectation": {"intent": "query"}},
-  {"case_key": "typical-030", "category": "typical", "input": {"query": "我的订单发货了吗", "history": []}, "expectation": {"intent": "query"}},
-  {"case_key": "typical-031", "category": "typical", "input": {"query": "物流怎么一直不更新", "history": []}, "expectation": {"intent": "query"}},
-  {"case_key": "typical-032", "category": "typical", "input": {"query": "帮我查一下这笔订单的退款进度", "history": []}, "expectation": {"intent": "query"}},
-  {"case_key": "typical-033", "category": "typical", "input": {"query": "这单什么时候能签收", "history": []}, "expectation": {"intent": "query"}},
-  {"case_key": "typical-034", "category": "typical", "input": {"query": "我的快递单号是多少", "history": []}, "expectation": {"intent": "query"}},
-  {"case_key": "typical-035", "category": "typical", "input": {"query": "退款到账了吗，我查不到", "history": []}, "expectation": {"intent": "query"}},
-  {"case_key": "typical-036", "category": "typical", "input": {"query": "我要退这个蓝牙耳机", "history": []}, "expectation": {"intent": "after_sales"}},
-  {"case_key": "typical-037", "category": "typical", "input": {"query": "帮我申请退货退款", "history": []}, "expectation": {"intent": "after_sales"}},
-  {"case_key": "typical-038", "category": "typical", "input": {"query": "耳机有质量问题，我要换货", "history": []}, "expectation": {"intent": "after_sales"}},
-  {"case_key": "typical-039", "category": "typical", "input": {"query": "这单我不要了，申请退款", "history": []}, "expectation": {"intent": "after_sales"}},
-  {"case_key": "typical-040", "category": "typical", "input": {"query": "能不能直接退钱不退货", "history": []}, "expectation": {"intent": "after_sales"}}
+  {
+    "case_key": "typical-001",
+    "category": "typical",
+    "input": {
+      "query": "七天无理由退货从哪天开始算",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "签收",
+        "七"
+      ],
+      "must_cite": true,
+      "min_citations": 1
+    }
+  },
+  {
+    "case_key": "typical-002",
+    "category": "typical",
+    "input": {
+      "query": "七天无理由的商品完好是什么意思",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "完好",
+        "配件"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-003",
+    "category": "typical",
+    "input": {
+      "query": "哪些商品不支持七天无理由退货",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "定作"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-004",
+    "category": "typical",
+    "input": {
+      "query": "退款一般多久到账",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "工作日",
+        "原路"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-005",
+    "category": "typical",
+    "input": {
+      "query": "银行卡退款要几天",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "工作日"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-006",
+    "category": "typical",
+    "input": {
+      "query": "信用卡退款多久入账",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "发卡行",
+        "工作日"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-007",
+    "category": "typical",
+    "input": {
+      "query": "无理由退货的运费谁承担",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "消费者",
+        "运费"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-008",
+    "category": "typical",
+    "input": {
+      "query": "质量问题退货运费谁出",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "商家",
+        "运费"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-009",
+    "category": "typical",
+    "input": {
+      "query": "运费险怎么赔",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "首重"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-010",
+    "category": "typical",
+    "input": {
+      "query": "拆开包装还能七天无理由吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "拆封",
+        "二次销售"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-011",
+    "category": "typical",
+    "input": {
+      "query": "手机激活了还能退吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "激活",
+        "已使用"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-012",
+    "category": "typical",
+    "input": {
+      "query": "耳机试戴后还能退货吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "耳塞",
+        "清洁"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-013",
+    "category": "typical",
+    "input": {
+      "query": "退货时赠品要退回吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "赠品",
+        "扣除"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-014",
+    "category": "typical",
+    "input": {
+      "query": "退货后发票怎么处理",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "红冲"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-015",
+    "category": "typical",
+    "input": {
+      "query": "电子发票可以重开吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "重开",
+        "红冲"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-016",
+    "category": "typical",
+    "input": {
+      "query": "专票退货要提供什么",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "红字信息表",
+        "专票"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-017",
+    "category": "typical",
+    "input": {
+      "query": "价保怎么申请",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "15",
+        "差价"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-018",
+    "category": "typical",
+    "input": {
+      "query": "价保可以申请几次",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "多次",
+        "实付金额"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-019",
+    "category": "typical",
+    "input": {
+      "query": "保修期多久",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "一年",
+        "两年"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-020",
+    "category": "typical",
+    "input": {
+      "query": "人为损坏能保修吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "有偿",
+        "人为"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-021",
+    "category": "typical",
+    "input": {
+      "query": "换货库存不足怎么办",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "补货",
+        "退货退款"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-022",
+    "category": "typical",
+    "input": {
+      "query": "换其他规格需要补差价吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "差价",
+        "多退少补"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-023",
+    "category": "typical",
+    "input": {
+      "query": "部分退货金额怎么算",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "比例",
+        "实付"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-024",
+    "category": "typical",
+    "input": {
+      "query": "部分退款会退运费吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "不"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-025",
+    "category": "typical",
+    "input": {
+      "query": "退款失败怎么办",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "账户",
+        "人工"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-026",
+    "category": "typical",
+    "input": {
+      "query": "上门取件要收费吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "取件",
+        "运费"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-027",
+    "category": "typical",
+    "input": {
+      "query": "退货地址在哪里看",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "售后",
+        "运单号"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-028",
+    "category": "typical",
+    "input": {
+      "query": "忘记填运单号会怎样",
+      "history": []
+    },
+    "expectation": {
+      "intent": "qa",
+      "keywords": [
+        "关闭",
+        "运单号"
+      ],
+      "must_cite": true
+    }
+  },
+  {
+    "case_key": "typical-029",
+    "category": "typical",
+    "input": {
+      "query": "我的退款到哪了",
+      "history": []
+    },
+    "expectation": {
+      "intent": "query"
+    }
+  },
+  {
+    "case_key": "typical-030",
+    "category": "typical",
+    "input": {
+      "query": "我的订单发货了吗",
+      "history": []
+    },
+    "expectation": {
+      "intent": "query"
+    }
+  },
+  {
+    "case_key": "typical-031",
+    "category": "typical",
+    "input": {
+      "query": "物流怎么一直不更新",
+      "history": []
+    },
+    "expectation": {
+      "intent": "query"
+    }
+  },
+  {
+    "case_key": "typical-032",
+    "category": "typical",
+    "input": {
+      "query": "帮我查一下这笔订单的退款进度",
+      "history": []
+    },
+    "expectation": {
+      "intent": "query"
+    }
+  },
+  {
+    "case_key": "typical-033",
+    "category": "typical",
+    "input": {
+      "query": "这单什么时候能签收",
+      "history": []
+    },
+    "expectation": {
+      "intent": "query"
+    }
+  },
+  {
+    "case_key": "typical-034",
+    "category": "typical",
+    "input": {
+      "query": "我的快递单号是多少",
+      "history": []
+    },
+    "expectation": {
+      "intent": "query"
+    }
+  },
+  {
+    "case_key": "typical-035",
+    "category": "typical",
+    "input": {
+      "query": "退款到账了吗，我查不到",
+      "history": []
+    },
+    "expectation": {
+      "intent": "query"
+    }
+  },
+  {
+    "case_key": "typical-036",
+    "category": "typical",
+    "input": {
+      "query": "我要退这个蓝牙耳机",
+      "history": []
+    },
+    "expectation": {
+      "intent": "after_sales"
+    }
+  },
+  {
+    "case_key": "typical-037",
+    "category": "typical",
+    "input": {
+      "query": "帮我申请退货退款",
+      "history": []
+    },
+    "expectation": {
+      "intent": "after_sales"
+    }
+  },
+  {
+    "case_key": "typical-038",
+    "category": "typical",
+    "input": {
+      "query": "耳机有质量问题，我要换货",
+      "history": []
+    },
+    "expectation": {
+      "intent": "after_sales"
+    }
+  },
+  {
+    "case_key": "typical-039",
+    "category": "typical",
+    "input": {
+      "query": "这单我不要了，申请退款",
+      "history": []
+    },
+    "expectation": {
+      "intent": "after_sales"
+    }
+  },
+  {
+    "case_key": "typical-040",
+    "category": "typical",
+    "input": {
+      "query": "能不能直接退钱不退货",
+      "history": []
+    },
+    "expectation": {
+      "intent_any": [
+        "qa",
+        "after_sales"
+      ]
+    }
+  }
 ]
