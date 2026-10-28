@@ -28,10 +28,10 @@
 | ID | 任务 | 依赖 | 状态 | 交付/验收 |
 | --- | --- | --- | --- | --- |
 | M1-10 | 90 条评测用例 + 执行器 + 失败归因 | M1-07 | **DONE** | 90 条（40/15/15/20）+ 断言/归因 + `/eval/run` + 离线 CLI；**真实离线评测 94.44%（85/90）、引用 100%、P95 4.65s，门禁通过**；剩余 5 条越界兜底待 M2 修 |
-| M1-11 | `trace_span` + `/traces/{id}` 调用树 | M1-06 | TODO | 单 trace_id 还原各段耗时/token |
-| M1-12 | 指标接线 + Grafana v1 | M1-07 | TODO | 四条核心曲线 |
-| M1-13 | 限流 + 会话并发 1 + 输入防护收口 | M1-06 | TODO | 触发 429 AS-4290 |
-| M1-14 | CI 扩展（RAG 集成 job + 评测抽样）+ 文档 | M1-10 | TODO | 新 job 全绿，M0 四 job 不退化 |
+| M1-11 | `trace_span` + `/traces/{id}` 调用树 | M1-06 | **DONE** | 迁移 0003 + 每节点 span（耗时/状态/tokens/meta）+ 调用树接口 + 7 例测试 |
+| M1-12 | 指标接线 + Grafana v1 | M1-07 | **DONE** | 端到端耗时/首片段耗时/缓存命中率/token/无引用拦截全接线；看板 `deploy/grafana/provisioning/dashboards/m1-rag.json` |
+| M1-13 | 限流 + 会话并发 1 + 输入防护收口 | M1-06 | **DONE** | Redis ZSET 滑动窗口 20rpm + 会话互斥锁；超限/并发 429 `AS-4290`；输入长度由 schema 限制 |
+| M1-14 | CI 扩展（RAG 集成 job + 评测抽样）+ 文档 | M1-10 | **DONE** | 新增 `eval-sampling` job（离线 5 条，不调真实模型）；原有 5 job 全绿 |
 
 ## M1-01 完成记录（2026-10-27）
 

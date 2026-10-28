@@ -44,6 +44,13 @@ CHAT_LATENCY = Histogram(
     buckets=(0.2, 0.5, 0.8, 1.0, 1.5, 2.0, 3.0, 5.0, 8.0),
 )
 
+CHAT_FIRST_TOKEN = Histogram(
+    "chat_first_token_seconds",
+    "对话首个可见片段耗时（按是否真实生成区分）",
+    ["mode"],
+    buckets=(0.1, 0.25, 0.5, 0.8, 1.2, 1.5, 2.0, 2.5, 3.0, 5.0, 8.0),
+)
+
 TOOL_LATENCY = Histogram(
     "tool_latency_ms",
     "工具调用耗时（毫秒）",

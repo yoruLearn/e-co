@@ -21,6 +21,7 @@ SSE 事件（与 Spec 表格一致）：
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Annotated, Any
 
@@ -35,6 +36,7 @@ from app.api.responses import ERROR_RESPONSES
 from app.api.schemas import ChatRequest
 from app.api.sse import SSE_HEADERS, SseEvent
 from app.api.sse_buffer import SseBuffer, SseFrame
+from app.common.metrics import CHAT_FIRST_TOKEN, CHAT_LATENCY
 from app.common.trace import get_trace_id
 
 logger = logging.getLogger("app.api.chat")
@@ -42,6 +44,10 @@ logger = logging.getLogger("app.api.chat")
 router = APIRouter(prefix="/chat", tags=["chat"], responses=ERROR_RESPONSES)
 
 EXPIRED_REPLAY_TEXT = "会话事件已过期或不存在，请重新提问。"
+
+
+def settings_session_lock_ttl(request: Request) -> int:
+    return int(getattr(request.app.state.settings, "session_lock_ttl_sec", 60))
 
 
 def _parse_last_event_id(raw: str | None) -> int | None:
@@ -125,6 +131,21 @@ async def chat_stream(
 
         return StreamingResponse(replay(), media_type="text/event-stream", headers=SSE_HEADERS)
 
+    limiter = request.app.state.ratelimit
+    allowed, retry_after = await limiter.allow(principal.user_id)
+    if not allowed:
+        raise AppError(
+            ErrorCode.RATE_LIMITED,
+            "请求过于频繁，请稍后再试",
+            detail={"retry_after_seconds": retry_after},
+        )
+    if not await limiter.acquire_session(session_id):
+        raise AppError(
+            ErrorCode.RATE_LIMITED,
+            "该会话正在处理上一条消息，请等待完成后再发送",
+            detail={"retry_after_seconds": settings_session_lock_ttl(request)},
+        )
+
     session = await runtime.session_store.load(session_id)
     state = initial_state(
         trace_id=trace_id,
@@ -146,10 +167,15 @@ async def chat_stream(
 
     async def event_stream() -> AsyncIterator[bytes]:
         answer = ""
+        started = time.perf_counter()
+        first_token_at: float | None = None
+        usage_for_mode = 0
         try:
             async for chunk in runtime.graph.astream(state, config, stream_mode="custom"):
                 if not isinstance(chunk, dict):
                     continue
+                if first_token_at is None:
+                    first_token_at = time.perf_counter() - started
                 async for data in emit(
                     str(chunk.get("event", "status")), chunk.get("payload") or {}
                 ):
@@ -159,6 +185,7 @@ async def chat_stream(
             values: dict[str, Any] = dict(snapshot.values or {})
             answer = str(values.get("answer_stream", ""))
             usage_tokens = int(values.get("usage_tokens", 0) or 0)
+            usage_for_mode = usage_tokens
             async for data in emit(
                 SseEvent.STATUS,
                 {
@@ -195,6 +222,13 @@ async def chat_stream(
                 yield data
             async for data in emit(SseEvent.DONE, {"trace_id": trace_id, "usage": {"tokens": 0}}):
                 yield data
+        finally:
+            await limiter.release_session(session_id)
+            CHAT_LATENCY.observe(time.perf_counter() - started)
+            if first_token_at is not None:
+                CHAT_FIRST_TOKEN.labels(
+                    mode="generated" if usage_for_mode > 0 else "fallback"
+                ).observe(first_token_at)
 
     return StreamingResponse(
         event_stream(),

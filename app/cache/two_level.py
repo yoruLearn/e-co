@@ -21,6 +21,7 @@ from typing import Any
 from redis.asyncio import Redis
 
 from app.common.logging import get_logger, log_warning
+from app.common.metrics import RAG_CACHE_HIT_RATIO
 
 logger = get_logger("app.cache")
 
@@ -89,10 +90,16 @@ class TwoLevelCache:
         self._locks: dict[str, asyncio.Lock] = {}
         self.stats: dict[str, int] = {"l1": 0, "l2": 0, "miss": 0}
 
+    def _publish_hit_ratio(self) -> None:
+        hits = self.stats.get("l1", 0) + self.stats.get("l2", 0)
+        total = hits + self.stats.get("miss", 0)
+        RAG_CACHE_HIT_RATIO.set(hits / total if total else 0.0)
+
     async def get(self, key: str) -> Any | None:
         local = self._local.get(key)
         if local is not None:
             self.stats["l1"] = self.stats.get("l1", 0) + 1
+            self._publish_hit_ratio()
             return local
         try:
             raw = await self._redis.get(f"cache:{key}")
@@ -101,6 +108,7 @@ class TwoLevelCache:
             raw = None
         if raw is None:
             self.stats["miss"] = self.stats.get("miss", 0) + 1
+            self._publish_hit_ratio()
             return None
         try:
             value = json.loads(raw)
@@ -108,6 +116,7 @@ class TwoLevelCache:
             return None
         self._local.set(key, value)
         self.stats["l2"] = self.stats.get("l2", 0) + 1
+        self._publish_hit_ratio()
         return value
 
     async def set(self, key: str, value: Any) -> None:

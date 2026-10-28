@@ -110,7 +110,10 @@ async def _amain(argv: list[str] | None = None) -> int:
     if not cases:
         print(f"[eval] 没有用例：{cases_dir}", file=sys.stderr)
         return 1
-    print(f"[eval] cases={len(cases)} distribution={count_by_category(cases)}")
+    print(
+        f"[eval] cases={len(cases)} distribution={count_by_category(cases)}",
+        file=sys.stderr,
+    )
 
     report = (
         await _run_offline(settings, cases, args.suite)

@@ -64,6 +64,33 @@ jobs:
       # 不依赖 MySQL/Redis：缺依赖时 /readyz 必须 503 且给出逐项明细
       - run: uv run python scripts/smoke.py
 
+  eval-sampling:
+    name: eval sampling锛堢绾匡紝涓嶈皟鐪熷疄妯″瀷锛?
+    runs-on: ubuntu-latest
+    env:
+      LLM_PROVIDER: mock
+      EMBEDDING_PROVIDER: hash
+      LOG_LEVEL: WARNING
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.x"
+          enable-cache: true
+      - run: uv sync --extra dev
+      # 评测端口径抽样：验证执行器/断言/汇总/门禁全链路可跑，不产生真实模型费用
+      - name: eval smoke锛? 鏉★級
+        run: |
+          uv run python -m app.eval.cli run --offline --categories no_answer --limit 5 --suite ci-sampling --no-fail-on-gate --json > eval-report.json
+          uv run python -c "import json;r=json.load(open('eval-report.json'));assert r['total']==5, r;assert 'attribution' in r and 'gate' in r;print('eval sampling ok:', r['completion_rate'])"
+      - name: upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: eval-report.json
+          if-no-files-found: ignore
+
   compose:
     name: compose config + image build + trivy
     runs-on: ubuntu-latest

@@ -153,6 +153,7 @@ class Settings(BaseSettings):
     gray_percent: int = Field(default=0, ge=0, le=100)
     idempotency_ttl_sec: int = 86_400
     user_rate_limit_per_min: int = 20
+    session_lock_ttl_sec: int = 60
 
     # ---- worker ----
     worker_heartbeat_interval_sec: int = Field(default=10, ge=1)

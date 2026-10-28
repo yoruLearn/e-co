@@ -23,6 +23,7 @@ from app.main import create_app
 from app.prompt.registry import PromptRegistry, SeedPromptSource
 from app.rag.pipeline import RetrievalHit, RetrievalResult
 from app.rag.retriever import ConfidenceBand
+from app.services.ratelimit import RateLimiter
 from app.session.store import SessionState
 
 SEED_PROMPTS = REPO_ROOT / "seeds" / "prompts.yaml"
@@ -372,3 +373,85 @@ def test_multi_turn_history_triggers_rewrite(
     chat: FakeChat = runtime.chat  # type: ignore[assignment]
     assert len(chat.complete_calls) >= 2, "多轮应同时调用 router 与 rewrite"
     assert frames[-1]["event"] == "done"
+
+
+class FakeRateRedis:
+    def __init__(self) -> None:
+        self.sorted_sets: dict[str, dict[str, float]] = {}
+        self.kv: dict[str, str] = {}
+
+    async def zremrangebyscore(self, key: str, minimum: float, maximum: float) -> int:
+        items = self.sorted_sets.get(key, {})
+        removed = [n for n, s in items.items() if minimum <= s <= maximum]
+        for name in removed:
+            items.pop(name, None)
+        return len(removed)
+
+    async def zadd(self, key: str, mapping: dict[str, float]) -> int:
+        self.sorted_sets.setdefault(key, {}).update(mapping)
+        return len(mapping)
+
+    async def zcard(self, key: str) -> int:
+        return len(self.sorted_sets.get(key, {}))
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        return True
+
+    async def set(self, key: str, value: str, *, nx: bool = False, ex: int | None = None):
+        if nx and key in self.kv:
+            return None
+        self.kv[key] = value
+        return True
+
+    async def delete(self, *keys: str) -> int:
+        return sum(1 for key in keys if self.kv.pop(key, None) is not None)
+
+
+def test_chat_rate_limited_returns_429(settings: Settings, buyer_auth: dict[str, str]) -> None:
+    app = create_app(settings)
+    app.state.agent = build_fake_runtime(settings)
+    app.state.ratelimit = RateLimiter(FakeRateRedis(), limit_per_min=1)
+    with TestClient(app) as client:
+        with client.stream(
+            "POST",
+            "/api/v1/chat/stream",
+            json={"session_id": "rl-1", "message": "退款多久到账"},
+            headers=buyer_auth,
+        ) as response:
+            assert response.status_code == 200
+            b"".join(response.iter_bytes())
+        second = client.post(
+            "/api/v1/chat/stream",
+            json={"session_id": "rl-2", "message": "退款多久到账"},
+            headers=buyer_auth,
+        )
+    assert second.status_code == 429
+    assert second.json()["code"] == "AS-4290"
+
+
+def test_chat_session_busy_returns_429(settings: Settings, buyer_auth: dict[str, str]) -> None:
+    redis = FakeRateRedis()
+    redis.kv["lock:chat:busy-1"] = "1"
+    app = create_app(settings)
+    app.state.agent = build_fake_runtime(settings)
+    app.state.ratelimit = RateLimiter(redis, limit_per_min=20)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/chat/stream",
+            json={"session_id": "busy-1", "message": "退款多久到账"},
+            headers=buyer_auth,
+        )
+    assert response.status_code == 429
+    assert "上一条消息" in response.json()["message"]
+
+
+def test_chat_latency_metric_recorded(settings: Settings, buyer_auth: dict[str, str]) -> None:
+    from prometheus_client import REGISTRY
+
+    before = REGISTRY.get_sample_value("chat_latency_seconds_count") or 0.0
+    app = create_app(settings)
+    app.state.agent = build_fake_runtime(settings)
+    with TestClient(app) as client:
+        stream_chat(client, buyer_auth, "退款多久到账", session="metrics-1")
+    after = REGISTRY.get_sample_value("chat_latency_seconds_count") or 0.0
+    assert after > before

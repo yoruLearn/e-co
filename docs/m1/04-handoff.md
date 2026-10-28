@@ -1,7 +1,7 @@
 # M1 交接文档 · 当前进度与下一步
 
 > **用途**：下次继续开发时先读这一份，再读 `docs/m1/01-plan.md`（方案）与 `docs/m1/03-verification.md`（验证记录）。
-> 最后更新：2026-10-28 11:40（本地时间）· 对应提交见文末。
+> 最后更新：2026-10-28 12:05（本地时间）· 对应提交见文末。
 
 ---
 
@@ -12,9 +12,9 @@
 | M0 骨架 | ✅ 完成 |
 | M1 I1 检索闭环 | ✅ 完成（provider / 语料 / 索引 / 混合召回 / 三档阈值） |
 | M1 I2 对话闭环 | ✅ 完成（Prompt / 图 / SSE 续传 / 记忆 / 缓存） |
-| M1 I3 质量与可观测 | 🚧 **M1-10 评测、M1-11 调用树已完成；M1-12 指标看板 / M1-13 限流 / M1-14 CI 测评未开始** |
+| M1 I3 质量与可观测 | ✅ **M1-10/11/12/13/14 全部完成**（除 staging 真实栈压测与 5 条越界兜底，见 §3） |
 
-**最新真实评测（离线：真实 DeepSeek + 本地 bge 向量，90 条）**
+**最新真实评测（离线：真实 DeepSeek + 本地 bge 向量，90 条；2026-10-28）**
 
 | 指标 | 数值 | 门禁 | 结论 |
 | --- | --- | --- | --- |
@@ -77,14 +77,13 @@
 
 ## 3. 未完成（按优先级）
 
-### P1 · M1 剩余工单
+### P1 · M1 收尾（只剩真实栈验证）
 
-| ID | 事项 | 建议做法 |
-| --- | --- | --- |
-| M1-12 | 指标接线 + Grafana 看板 v1 | `chat_latency_seconds`（chat 路由 finally observe）、`rag_cache_hit_ratio`（`TwoLevelCache.stats`）、`llm_tokens_total`（provider）、`answer_without_citation_total`（已有）；面板：P95/错误率/缓存命中/tokens/兜底率 |
-| M1-13 | 限流 20rpm/用户 + 单会话并发 1 + 输入防护收口 | Redis 滑动窗口；429 `AS-4290`；并发用 Redis SET NX + TTL，冲突返回同码 |
-| M1-14 | CI 加评测抽样 job + 文档收尾 | 用 Fake 执行器或 `--limit 5` 的 mock 回放，不调真实模型；保证 5 个 job 仍全绿 |
-| staging | 真实栈评测 | 真实 MySQL + Chroma + 正式语料跑 90 条，替换离线数字 |
+| 事项 | 状态 / 建议 |
+| --- | --- |
+| staging 真实栈评测（MySQL + Chroma + 正式语料，90 条） | 本机 Docker Hub 不可达；需在有 Docker 的环境跑 `python -m app.eval.cli run --suite nightly`（非 `--offline`） |
+| 首片段 P95 压测 | 指标 `chat_first_token_seconds{mode}` 已接线；需在 staging 用缓存命中/未命中两组样本出曲线 |
+| CI 全绿确认 | 本地 506 passed / 83.29%；CI 6 job（新增 eval-sampling）待本次提交验证 |
 
 ### P2 · 已知质量缺口（M2）
 
@@ -162,4 +161,5 @@ seeds/prompts.yaml           Prompt 基线（router/rewrite/answer 已调优）
 | `640b317` | 七节点图 + SSE（引用/脱敏/兜底）+ 记忆 |
 | `7de6611` | SSE 续传 + 摘要压缩 + 两级缓存与单飞 |
 | `d78a8f5` | 评测执行器 + 90 条用例 + `/eval/run` + 交接文档 |
-| 本次 | 评测调优（81.11%→94.44%）+ M1-11 trace_span 调用树 |
+| `9e099fd` | 评测调优（81.11%→94.44%）+ M1-11 trace_span 调用树 |
+| 本次 | M1-12 指标/看板 + M1-13 限流与会话互斥 + M1-14 CI 评测抽样 |

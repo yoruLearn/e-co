@@ -2,6 +2,64 @@
 
 > 逐迭代留痕：做了什么、跑了什么、数字是多少、哪些是"假绿"必须排除。
 
+## 迭代 I3 · 第 9 天（2026-10-28）：指标看板 / 限流 / CI 评测抽样
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `ruff check .` / `ruff format --check .` | ✅ 150 文件 |
+| 2 | `mypy app`（strict） | ✅ 88 source files |
+| 3 | `pytest -q --cov=app` | ✅ **506 passed, 10 skipped，83.29%** |
+| 4 | `pytest tests/unit/test_ratelimit.py tests/integration/test_chat_stream.py` | ✅ 20 例（含 429/会话互斥/延迟指标） |
+| 5 | `python -m app.eval.cli ... --json`（CI 同口径） | ✅ 5 条抽样，`total=5`，JSON 可解析 |
+
+### M1-12 指标看板
+
+| 指标 | 落点 | 说明 |
+| --- | --- | --- |
+| `chat_latency_seconds` | chat 路由 finally | 端到端耗时（含 SSE 全流程） |
+| `chat_first_token_seconds{mode}` | chat 路由首个 delta | `generated` / `fallback` 分开；**不把推理模型的 2s 首字藏进平均值** |
+| `rag_cache_hit_ratio` | `TwoLevelCache._publish_hit_ratio` | L1+L2 命中 / 总请求 |
+| `llm_tokens_total{node}` | provider（已有，M1 生效） | 成本按节点归因 |
+| `answer_without_citation_total` | answer 节点 | 无引用拦截计数（应为 0） |
+
+看板：`deploy/grafana/provisioning/dashboards/m1-rag.json`（P95/P50、首片段 P95、5xx、缓存命中、无引用、token 速率、请求/错误）；
+datasource 增加 `uid: prometheus`，由 provisioning 自动加载。
+
+### M1-13 限流与会话互斥
+
+| 场景 | 行为 | 验证 |
+| --- | --- | --- |
+| 用户 >20 次/分钟 | 429 `AS-4290`，detail 带 `retry_after_seconds` | 单测（第 3 次拒绝）+ 接口测试 |
+| 同一 session 并发 | 第二个请求 429（"正在处理上一条消息"） | 预置锁 → 429 |
+| Redis 故障 | **放行**并告警（保护性措施不阻断业务） | 故障注入单测 |
+| 正常完成 | 流结束释放锁（finally） | 互斥测试：释放后可再次获取 |
+
+### M1-14 CI 评测抽样
+
+新增 `eval-sampling` job：`LLM_PROVIDER=mock` + `EMBEDDING_PROVIDER=hash`，跑 `--offline --categories no_answer --limit 5 --json`，
+断言 `total==5` 且报告含 `attribution/gate`，上传 artifact。**不调用真实模型**，不会产生费用。
+
+### 本轮修掉的问题
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | CLI 的 `[eval] cases=...` 打到 stdout，`--json` 输出被污染 | 进度改 stderr，stdout 只留 JSON（CI 解析才可靠） |
+| 2 | `.env.example` 先加 `RATE_LIMIT_PER_MIN`（Settings 里叫 `USER_RATE_LIMIT_PER_MIN`） | 用真实字段名并去重，`test_config` 恢复绿色 |
+| 3 | chat 的指标/解锁 `finally` 一开始挂在 except 分支上 | 移到 try/finally 层，指标测试从 0 → 有样本 |
+
+### M1 出口门禁现状
+
+| 项 | 目标 | 实测 | 结论 |
+| --- | --- | --- | --- |
+| 完成率 | ≥90% | 94.44%（85/90） | ✅ |
+| 引用正确率 | ≥95% | 100% | ✅ |
+| 无引用直出 | 0 | 0（指标可观测） | ✅ |
+| 首片段 P95 | 缓存命中 ≤800ms | 已分 mode 采集；未做压测样本 | ⚠️ 需 staging 压测 |
+| 限流/会话并发 | 生效 | 429 + 互斥 | ✅ |
+| 越界兜底 | 不硬答 | 5/15 仍作答 | ⚠️ M2 可答性分类器 |
+
+---
+
 ## 迭代 I3 · 第 8 天（2026-10-28）：评测调优 + M1-11 调用树
 
 | # | 命令 | 结果 |

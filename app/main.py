@@ -31,6 +31,7 @@ from app.common.config import Settings, get_settings
 from app.common.logging import configure_logging, update_log_context
 from app.common.metrics import APP_INFO
 from app.services.health import ReadinessService, build_readiness_service
+from app.services.ratelimit import RateLimiter
 
 logger = logging.getLogger("app.main")
 
@@ -125,6 +126,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.clients = clients
     app.state.readiness = readiness
     app.state.agent = build_agent_runtime(settings, clients)
+    app.state.ratelimit = RateLimiter(
+        clients.redis,
+        limit_per_min=settings.user_rate_limit_per_min,
+        session_lock_ttl_seconds=settings.session_lock_ttl_sec,
+    )
     app.state.started_at = time.time()
 
     register_exception_handlers(app)
