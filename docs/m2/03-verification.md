@@ -95,3 +95,32 @@
 ### 待 CI 确认
 
 MySQL job 是否全绿（并发/迁移/审批/恢复）；若失败，按日志修（本机无 MySQL，无法预跑）。
+
+## 第 4 天（2026-10-28）：MySQL 集成全绿
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `pytest -m mysql`（CI，MySQL 8） | ✅ **5 passed**（并发 10→1、重放/冲突、非法迁移/版本冲突、回调幂等、驳回可见） |
+| 2 | CI run #27 | ✅ **7/7**（quality/smoke/eval/compose/migration/aftersales-mysql/rag） |
+
+### 修掉的问题
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | MySQL 用例里先 SELECT 再 `session.begin()`，SQLAlchemy 报 "transaction already begun" | 读与首次迁移放进同一个 `begin()`，第二次迁移用独立 `begin()` |
+| 2 | 失败日志在公开仓库不可拉取 | CI 把 pytest 尾部输出打到 annotation，按 annotation 定位 |
+| 3 | async fixture 未用 `pytest_asyncio.fixture` | 显式装饰 + 连接池调大 |
+
+### M2 出口门禁
+
+| 项 | 目标 | 实测 | 结论 |
+| --- | --- | --- | --- |
+| 幂等 | 并发 10 → 1 单 | ✅ | 通过 |
+| 迁移合法性 | 非法跃迁/版本冲突拒绝 | ✅ `AS-4003` | 通过 |
+| 双确认 | 未确认/换参/换人/过期拒绝 | ✅ | 通过 |
+| 审批 | >500 进审批、回调幂等 | ✅ | 通过 |
+| 图链路 | 两轮确认 + 进度查询 | ✅ 3 例 | 通过 |
+| outbox | 同事务写入 + 投递/消费幂等 | ✅ 代码 + 单元路径 | 通过 |
+| 回归 | M1 + M0 | ✅ 559 passed / 7 job | 通过 |
+
+> 仍未做：真实订单 Provider 联调（M4）、approval 挂起后跨进程图恢复的端到端演练（当前以 DB 状态为准 + checkpoint 单测）。
