@@ -15,6 +15,7 @@ import asyncio
 import json
 import re
 from collections.abc import Callable
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from langgraph.config import get_stream_writer
@@ -26,6 +27,7 @@ from app.agent.citations import (
     to_citations,
 )
 from app.agent.state import AfterSalesState, Intent
+from app.api.errors import AppError
 from app.common.metrics import ANSWER_WITHOUT_CITATION
 from app.common.trace import get_trace_id
 from app.llm.types import ChatMessage, LLMError
@@ -449,12 +451,176 @@ def route_after_cache(state: AfterSalesState) -> str:
     return "sse_out" if state.get("cache_hit") else "router"
 
 
+_ORDER_RE = re.compile(r"O[0-9]{6,}")
+_BIZ_RE = re.compile(r"AS[0-9]{8,}[A-Z0-9]*")
+_AMOUNT_RE = re.compile(r"([0-9]+(?:\.[0-9]{1,2})?)\s*元")
+
+INTAKE_ASK_ORDER = "请提供订单号（形如 O2026...），我帮您发起售后。"
+INTAKE_CONFIRM_TEXT = "请确认：即将为您申请{action}，订单 {order_id}，金额 {amount} 元。"
+INTAKE_ACCEPTED_TEXT = "已受理，单号 {biz_id}，当前状态 {status}。"
+APPROVAL_WAITING_TEXT = " 金额超过 500 元，正在等待人工审批。"
+
+
+def extract_order_id(text: str) -> str | None:
+    match = _ORDER_RE.search(text or "")
+    return match.group(0) if match else None
+
+
+def extract_biz_id(text: str) -> str | None:
+    match = _BIZ_RE.search(text or "")
+    return match.group(0) if match else None
+
+
+def extract_amount(text: str) -> Decimal | None:
+    match = _AMOUNT_RE.search(text or "")
+    return Decimal(match.group(1)) if match else None
+
+
+def detect_action(text: str) -> str:
+    value = text or ""
+    if "换" in value:
+        return "exchange"
+    if "退款" in value or "退钱" in value:
+        return "refund"
+    return "return"
+
+
+async def intake_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[str, Any]:
+    """办事链路：无待确认 → 取参并签发 confirm_token；带 token → 写工具受理。"""
+    writer = _writer()
+    degraded = list(state.get("degraded", []))
+    tools = runtime.order_tools
+    confirm = runtime.confirm
+    write_tools = runtime.aftersales_tools
+    if tools is None or confirm is None or write_tools is None:
+        writer({"event": "delta", "payload": {"text": PENDING_TEXT}})
+        return {"answer_stream": PENDING_TEXT, "degraded": degraded}
+
+    token = state.get("user_confirm_token")
+    pending = state.get("pending_action")
+    if token and isinstance(pending, dict):
+        try:
+            outcome = await write_tools.create(
+                user_id=state.get("user_id", ""),
+                action=str(pending.get("action", "refund")),
+                order_id=str(pending.get("order_id", "")),
+                reason_code=str(pending.get("reason_code", "user_request")),
+                amount=Decimal(str(pending.get("amount"))) if pending.get("amount") else None,
+                confirm_token=token,
+                idem_key=f"{pending.get('order_id')}:{pending.get('action')}",
+                trace_id=state.get("trace_id", ""),
+                role=state.get("user_role", "buyer"),
+            )
+        except AppError as exc:
+            writer({"event": "error", "payload": {"code": str(exc.code), "message": exc.message}})
+            return {
+                "answer_stream": exc.message,
+                "degraded": [*degraded, f"aftersales:{exc.code}"],
+            }
+        writer({"event": "status", "payload": {"biz_id": outcome.biz_id, "status": outcome.status}})
+        text = INTAKE_ACCEPTED_TEXT.format(biz_id=outcome.biz_id, status=outcome.status)
+        if outcome.approval_required:
+            text += APPROVAL_WAITING_TEXT
+        writer({"event": "delta", "payload": {"text": text}})
+        return {
+            "biz_id": outcome.biz_id,
+            "status": outcome.status,
+            "answer_stream": text,
+            "pending_action": None,
+            "confirm_token": None,
+            "degraded": degraded,
+        }
+
+    order_id = extract_order_id(state.get("user_query", "")) or (
+        str(pending.get("order_id")) if isinstance(pending, dict) else ""
+    )
+    if not order_id:
+        writer({"event": "delta", "payload": {"text": INTAKE_ASK_ORDER}})
+        writer(
+            {"event": "clarify", "payload": {"question": INTAKE_ASK_ORDER, "missing": ["order_id"]}}
+        )
+        return {"answer_stream": INTAKE_ASK_ORDER, "degraded": degraded}
+
+    try:
+        order_result = await tools.get_order(
+            order_id, user_id=state.get("user_id", ""), role=state.get("user_role", "buyer")
+        )
+    except AppError as exc:
+        writer({"event": "error", "payload": {"code": str(exc.code), "message": exc.message}})
+        return {"answer_stream": exc.message, "degraded": [*degraded, f"tool:{exc.code}"]}
+
+    amount = extract_amount(state.get("user_query", "")) or Decimal(
+        str(order_result.data["amount"])
+    )
+    action = detect_action(state.get("user_query", ""))
+    confirm_token = await confirm.issue(
+        user_id=state.get("user_id", ""),
+        action=action,
+        order_id=order_id,
+        amount=amount,
+        trace_id=state.get("trace_id", ""),
+    )
+    writer(
+        {
+            "event": "confirm",
+            "payload": {
+                "action": action,
+                "amount": float(amount),
+                "order_id": order_id,
+                "confirm_token": confirm_token,
+                "biz_hint": "确认后发起售后；金额超过 500 元将进入人工审批",
+            },
+        }
+    )
+    text = INTAKE_CONFIRM_TEXT.format(action=action, order_id=order_id, amount=amount)
+    writer({"event": "delta", "payload": {"text": text}})
+    return {
+        "answer_stream": text,
+        "confirm_token": confirm_token,
+        "pending_action": {
+            "order_id": order_id,
+            "action": action,
+            "amount": str(amount),
+            "reason_code": "user_request",
+        },
+        "degraded": degraded,
+    }
+
+
+async def query_status_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[str, Any]:
+    """进度查询：按 biz_id 读 DB 单据（读己之写）。"""
+    writer = _writer()
+    service = runtime.aftersales
+    if service is None:
+        writer({"event": "delta", "payload": {"text": PENDING_TEXT}})
+        return {"answer_stream": PENDING_TEXT}
+    biz_id = extract_biz_id(state.get("user_query", ""))
+    if not biz_id:
+        text = "请提供售后单号（形如 AS2026...），我帮您查进度。"
+        writer({"event": "delta", "payload": {"text": text}})
+        writer({"event": "clarify", "payload": {"question": text, "missing": ["biz_id"]}})
+        return {"answer_stream": text}
+    try:
+        detail = await service.get(
+            biz_id, user_id=state.get("user_id", ""), role=state.get("user_role", "buyer")
+        )
+    except AppError as exc:
+        writer({"event": "error", "payload": {"code": str(exc.code), "message": exc.message}})
+        return {"answer_stream": exc.message, "degraded": [f"status:{exc.code}"]}
+    writer({"event": "status", "payload": {"biz_id": biz_id, "status": detail["status"]}})
+    text = f"单号 {biz_id} 当前状态 {detail['status']}（版本 {detail['version']}）。"
+    writer({"event": "delta", "payload": {"text": text}})
+    return {"biz_id": biz_id, "status": detail["status"], "answer_stream": text}
+
+
 def route_after_router(state: AfterSalesState) -> str:
     intent = str(state.get("intent", Intent.QA))
     if intent == Intent.QA:
         return "rewrite"
-    if intent in (Intent.QUERY, Intent.AFTER_SALES):
-        return "pending_capability"
+    if intent == Intent.QUERY:
+        return "query_status"
+    if intent == Intent.AFTER_SALES:
+        return "intake"
     return "reject"
 
 

@@ -70,8 +70,8 @@ def test_history_text_caps_turns() -> None:
 
 def test_route_after_router() -> None:
     assert route_after_router({"intent": Intent.QA}) == "rewrite"
-    assert route_after_router({"intent": Intent.QUERY}) == "pending_capability"
-    assert route_after_router({"intent": Intent.AFTER_SALES}) == "pending_capability"
+    assert route_after_router({"intent": Intent.QUERY}) == "query_status"
+    assert route_after_router({"intent": Intent.AFTER_SALES}) == "intake"
     assert route_after_router({"intent": Intent.CHITCHAT}) == "reject"
     assert route_after_router({}) == "rewrite"  # 缺省按 qa 处理
 

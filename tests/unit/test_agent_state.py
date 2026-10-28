@@ -33,6 +33,10 @@ def test_initial_state_has_all_spec_fields() -> None:
         "approval_task_id",
         "answer_stream",
         "cache_hit",
+        "user_role",
+        "user_confirm_token",
+        "confirm_token",
+        "pending_action",
         "usage_tokens",
         "error",
     }

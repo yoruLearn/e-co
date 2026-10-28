@@ -41,6 +41,8 @@ NODE_NAMES: Final[tuple[str, ...]] = (
     "clarify",
     "reject",
     "pending_capability",
+    "intake",
+    "query_status",
     "sse_out",
 )
 
@@ -110,6 +112,12 @@ def build_graph(runtime: AgentRuntime) -> Any:
     async def pending_capability(state: AfterSalesState) -> dict[str, Any]:
         return await timed("pending_capability", state, lambda: core.pending_node(runtime, state))
 
+    async def intake(state: AfterSalesState) -> dict[str, Any]:
+        return await timed("intake", state, lambda: core.intake_node(runtime, state))
+
+    async def query_status(state: AfterSalesState) -> dict[str, Any]:
+        return await timed("query_status", state, lambda: core.query_status_node(runtime, state))
+
     async def sse_out(state: AfterSalesState) -> dict[str, Any]:
         return await timed("sse_out", state, lambda: core.sse_out_node(runtime, state))
 
@@ -121,6 +129,8 @@ def build_graph(runtime: AgentRuntime) -> Any:
     graph.add_node("clarify", clarify)
     graph.add_node("reject", reject)
     graph.add_node("pending_capability", pending_capability)
+    graph.add_node("intake", intake)
+    graph.add_node("query_status", query_status)
     graph.add_node("sse_out", sse_out)
 
     graph.add_edge(START, "cache_probe")
@@ -135,6 +145,8 @@ def build_graph(runtime: AgentRuntime) -> Any:
         {
             "rewrite": "rewrite",
             "pending_capability": "pending_capability",
+            "intake": "intake",
+            "query_status": "query_status",
             "reject": "reject",
         },
     )
@@ -148,6 +160,8 @@ def build_graph(runtime: AgentRuntime) -> Any:
     graph.add_edge("clarify", "sse_out")
     graph.add_edge("reject", "sse_out")
     graph.add_edge("pending_capability", "sse_out")
+    graph.add_edge("intake", "sse_out")
+    graph.add_edge("query_status", "sse_out")
     graph.add_edge("sse_out", END)
 
     compiled = graph.compile(checkpointer=runtime.checkpointer)

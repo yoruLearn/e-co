@@ -91,9 +91,15 @@ class FakeSessionStore:
         return self.state
 
     async def append(
-        self, session_id: str, *, user_message: str, assistant_message: str
+        self,
+        session_id: str,
+        *,
+        user_message: str,
+        assistant_message: str,
+        pending_action: dict[str, object] | None = None,
     ) -> SessionState:
         self.appended.append((session_id, user_message, assistant_message))
+        self.state.pending_action = pending_action
         return self.state
 
 

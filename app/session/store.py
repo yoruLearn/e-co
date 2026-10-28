@@ -38,6 +38,7 @@ SUMMARY_EVERY_EXCESS_ROUNDS = 2
 class SessionState:
     turns: list[dict[str, str]] = field(default_factory=list)
     summary: str = ""
+    pending_action: dict[str, object] | None = None
     archive: str = ""
     pending: int = 0
 
@@ -98,12 +99,19 @@ class SessionStore:
             summary=str(payload.get("summary", "")),
             archive=str(payload.get("archive", ""))[:MAX_ARCHIVE_CHARS],
             pending=int(payload.get("pending", 0) or 0),
+            pending_action=payload.get("pending_action") or None,
         )
 
     async def append(
-        self, session_id: str, *, user_message: str, assistant_message: str
+        self,
+        session_id: str,
+        *,
+        user_message: str,
+        assistant_message: str,
+        pending_action: dict[str, object] | None = None,
     ) -> SessionState:
         state = await self.load(session_id)
+        state.pending_action = pending_action
         state.turns.extend(
             [
                 {"role": "user", "content": user_message},
@@ -144,6 +152,7 @@ class SessionStore:
                         "summary": state.summary,
                         "archive": state.archive,
                         "pending": state.pending,
+                        "pending_action": state.pending_action,
                     },
                     ensure_ascii=False,
                 ),

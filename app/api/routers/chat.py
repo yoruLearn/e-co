@@ -153,6 +153,9 @@ async def chat_stream(
         user_id=principal.user_id,
         user_query=payload.message,
         history=session.history(),
+        user_role=principal.role.value,
+        confirm_token=payload.confirm_token,
+        pending_action=session.pending_action,
     )
     config = {"configurable": {"thread_id": session_id}}
 
@@ -206,6 +209,7 @@ async def chat_stream(
                     session_id,
                     user_message=payload.message,
                     assistant_message=answer,
+                    pending_action=values.get("pending_action"),
                 )
         except AppError as exc:
             logger.warning("chat.stream.app_error", extra={"code": str(exc.code)})

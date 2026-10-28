@@ -72,6 +72,10 @@ class AfterSalesState(TypedDict, total=False):
     approval_task_id: str | None
     answer_stream: str
     cache_hit: bool
+    user_role: str
+    user_confirm_token: str | None
+    confirm_token: str | None
+    pending_action: dict[str, object] | None
     usage_tokens: int
     error: ErrorInfo | None
 
@@ -83,6 +87,9 @@ def initial_state(
     user_id: str,
     user_query: str = "",
     history: list[dict[str, str]] | None = None,
+    user_role: str = "buyer",
+    confirm_token: str | None = None,
+    pending_action: dict[str, object] | None = None,
 ) -> AfterSalesState:
     """新建会话的初始状态；``version=0`` 与 DB 乐观锁初值一致。"""
     return AfterSalesState(
@@ -91,6 +98,8 @@ def initial_state(
         user_id=user_id,
         user_query=user_query,
         history=list(history or []),
+        user_role=user_role,
+        user_confirm_token=confirm_token,
         intent=Intent.QA.value,
         router_confidence=0.0,
         rewritten_query=None,
@@ -110,6 +119,8 @@ def initial_state(
         approval_task_id=None,
         answer_stream="",
         cache_hit=False,
+        confirm_token=None,
+        pending_action=pending_action,
         usage_tokens=0,
         error=None,
     )

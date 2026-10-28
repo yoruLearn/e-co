@@ -43,3 +43,31 @@
 | 3 | 订单行 schema 要 `amount`，工具只给了单价 | 工具补行小计 |
 | 4 | 501 契约测试列表仍包含已实现端点 | 移除并改由真实接口测试覆盖 |
 
+
+## 第 2 天（2026-10-28）：图接入 + 写工具审计 + outbox
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `ruff check .` / `ruff format --check .` | ✅ 172 文件 |
+| 2 | `mypy app`（strict） | ✅ 98 source files |
+| 3 | `pytest -q --cov=app` | ✅ **559 passed, 10 skipped，81.18%** |
+| 4 | `pytest tests/integration/test_chat_aftersales.py` | ✅ 3 例（两轮确认/进度查询/缺订单号澄清） |
+
+### 本轮落地
+
+| 能力 | 落点 | 说明 |
+| --- | --- | --- |
+| 图接入 | `nodes/core.py` 的 `intake` / `query_status` | after_sales：取参 → 签 confirm_token；带 token 的下一轮 → 写工具受理；query：按 AS 单号读 DB |
+| 跨轮状态 | `app/session/store.py` | `pending_action` 随会话持久化（Redis），重启/多标签不丢 |
+| 写工具 + 审计 | `app/tools/aftersales.py`、`services/tool_audit.py` | 单次消费 token → 状态机 → `tool_audit`（params_hash/result_code/cost_ms） |
+| outbox 投递 | `services/outbox_dispatcher.py` | pending 轮询 → published；失败指数退避 5→300s；>5 次 dead + `dlq_total` |
+| outbox 消费 | `services/outbox_consumer.py` | Redis `SET NX consumed:{msg_id}` 去重 + 标记 consumed |
+
+### 尚未验证
+
+| 项 | 原因 | 计划 |
+| --- | --- | --- |
+| MySQL 并发幂等（10 → 1）、非法迁移全表、回调幂等 | 本机无 Docker/MySQL | M2-10 CI service job |
+| 图的两轮确认走真实 API（含 SSE confirm 事件） | 需要 DB + Redis 完整链路 | M2-10 |
+| 审批通过后的下一轮状态回溯 | 同上 | M2-10 |
+

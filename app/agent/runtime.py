@@ -36,9 +36,14 @@ from app.rag.chroma import ChromaVectorIndex, VectorHit
 from app.rag.chunker import collection_name
 from app.rag.keyword import EmptyKeywordIndex, KeywordIndex, MysqlKeywordIndex
 from app.rag.pipeline import HybridRetriever, LlmReranker, NoopReranker
+from app.services.aftersales import AfterSalesService
+from app.services.confirm import ConfirmTokenService
+from app.services.tool_audit import ToolAuditRecorder
 from app.services.trace_store import NullTraceRecorder, TraceRecorder
 from app.session.store import SessionStore
 from app.session.summarize import SessionSummarizer
+from app.tools.aftersales import AfterSalesTools
+from app.tools.orders import MockOrderProvider, OrderTools
 
 logger = get_logger("app.agent.runtime")
 
@@ -59,6 +64,10 @@ class AgentRuntime:
     cache: TwoLevelCache | None = None
     trace: TraceRecorder | NullTraceRecorder = field(default_factory=NullTraceRecorder)
     answerability: AnswerabilityChecker = field(default_factory=AlwaysAnswerableChecker)
+    order_tools: Any = None
+    confirm: Any = None
+    aftersales: Any = None
+    aftersales_tools: Any = None
     _collection_cache: dict[str, str] = field(default_factory=dict)
     _last_index_version: str | None = None
 
@@ -152,6 +161,9 @@ def build_agent_runtime(settings: Settings, clients: AppClients) -> AgentRuntime
         reranker=reranker,
         cache=cache,
     )
+    order_tools = OrderTools(MockOrderProvider())
+    aftersales_service = AfterSalesService(clients.session_factory, settings=settings)
+    confirm_tokens = ConfirmTokenService(clients.redis)
     runtime = AgentRuntime(
         settings=settings,
         chat=chat,
@@ -178,6 +190,14 @@ def build_agent_runtime(settings: Settings, clients: AppClients) -> AgentRuntime
             LlmAnswerabilityChecker(chat, prompts)
             if settings.rag_answerability_enabled
             else AlwaysAnswerableChecker()
+        ),
+        order_tools=order_tools,
+        confirm=confirm_tokens,
+        aftersales=aftersales_service,
+        aftersales_tools=AfterSalesTools(
+            aftersales_service,
+            confirm_tokens,
+            ToolAuditRecorder(clients.session_factory),
         ),
     )
     runtime.graph = build_graph(runtime)

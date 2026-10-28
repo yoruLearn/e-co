@@ -28,6 +28,9 @@ class ChatRequest(BaseModel):
     session_id: str = Field(min_length=1, max_length=128, description="会话 ID")
     message: str = Field(min_length=1, max_length=4000, description="用户本轮输入")
     context: ChatContext = Field(default_factory=ChatContext)
+    confirm_token: str | None = Field(
+        default=None, max_length=128, description="写操作双确认令牌（由 confirm 事件签发）"
+    )
 
 
 class Usage(BaseModel):
