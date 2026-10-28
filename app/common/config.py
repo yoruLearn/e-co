@@ -127,6 +127,7 @@ class Settings(BaseSettings):
     rag_index_version: str = "v1"
     rag_answerability_enabled: bool = True
     rag_answerability_threshold: float = Field(default=0.65, ge=0.0, le=1.0)
+    answer_cache_enabled: bool = True
     rag_offline: bool = False
     rerank_provider: Literal["none", "llm"] = "none"
     keyword_backend: Literal["mysql", "memory"] = "mysql"

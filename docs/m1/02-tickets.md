@@ -49,3 +49,4 @@
 - 推理模型首正文 ~2.2s，Spec「首 token P95 ≤ 800ms」只能在**缓存命中**场景达成；
   非缓存场景按「端到端 P95 ≤ 1.5s + 缓存命中率」组合指标验收，M1 不虚报。
 - CI 默认 `LLM_PROVIDER=mock`、`EMBEDDING_PROVIDER=hash`；真实模型只在 staging/本地联调。
+| M1-15（补） | 答案级缓存 + 入口短路 | M1-09 | **DONE** | `ans:{ver}:{hash(query)}` 只缓存带引用的成功答案；入口 `cache_probe` 命中直接回放（跳过 router/检索/生成）；实测热命中 6ms、0 token |

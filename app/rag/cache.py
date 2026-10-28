@@ -36,6 +36,11 @@ def local_cache_key(index_version: str, query: str) -> str:
     return f"lc:{query_hash(f'{query}|{index_version}')}"
 
 
+def answer_cache_key(index_version: str, query: str) -> str:
+    """``ans:{index_ver}:{hash(query)}`` —— 答案级缓存，随索引版本失效。"""
+    return f"ans:{index_version}:{query_hash(query)}"
+
+
 def faq_cache_key(question: str) -> str:
     return f"faq:{query_hash(question)}"
 

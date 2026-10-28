@@ -32,6 +32,7 @@ def test_initial_state_has_all_spec_fields() -> None:
         "confirm_required",
         "approval_task_id",
         "answer_stream",
+        "cache_hit",
         "usage_tokens",
         "error",
     }

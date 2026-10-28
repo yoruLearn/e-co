@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 logger = get_logger("app.agent.graph")
 
 NODE_NAMES: Final[tuple[str, ...]] = (
+    "cache_probe",
     "router",
     "rewrite",
     "retrieve",
@@ -85,6 +86,9 @@ def build_graph(runtime: AgentRuntime) -> Any:
                 meta={"session_id": str(state.get("session_id") or "")},
             )
 
+    async def cache_probe(state: AfterSalesState) -> dict[str, Any]:
+        return await timed("cache_probe", state, lambda: core.cache_probe_node(runtime, state))
+
     async def router(state: AfterSalesState) -> dict[str, Any]:
         return await timed("router", state, lambda: core.router_node(runtime, state))
 
@@ -109,6 +113,7 @@ def build_graph(runtime: AgentRuntime) -> Any:
     async def sse_out(state: AfterSalesState) -> dict[str, Any]:
         return await timed("sse_out", state, lambda: core.sse_out_node(runtime, state))
 
+    graph.add_node("cache_probe", cache_probe)
     graph.add_node("router", router)
     graph.add_node("rewrite", rewrite)
     graph.add_node("retrieve", retrieve)
@@ -118,7 +123,12 @@ def build_graph(runtime: AgentRuntime) -> Any:
     graph.add_node("pending_capability", pending_capability)
     graph.add_node("sse_out", sse_out)
 
-    graph.add_edge(START, "router")
+    graph.add_edge(START, "cache_probe")
+    graph.add_conditional_edges(
+        "cache_probe",
+        core.route_after_cache,
+        {"sse_out": "sse_out", "router": "router"},
+    )
     graph.add_conditional_edges(
         "router",
         core.route_after_router,

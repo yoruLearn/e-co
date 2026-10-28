@@ -71,6 +71,7 @@ class AfterSalesState(TypedDict, total=False):
     confirm_required: bool
     approval_task_id: str | None
     answer_stream: str
+    cache_hit: bool
     usage_tokens: int
     error: ErrorInfo | None
 
@@ -108,6 +109,7 @@ def initial_state(
         confirm_required=False,
         approval_task_id=None,
         answer_stream="",
+        cache_hit=False,
         usage_tokens=0,
         error=None,
     )

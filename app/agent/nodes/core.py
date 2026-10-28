@@ -30,6 +30,7 @@ from app.common.metrics import ANSWER_WITHOUT_CITATION
 from app.common.trace import get_trace_id
 from app.llm.types import ChatMessage, LLMError
 from app.prompt.guard import StreamingRedactor, redact_output, with_system_guard, wrap_user_input
+from app.rag.cache import answer_cache_key
 
 if TYPE_CHECKING:
     from app.agent.runtime import AgentRuntime
@@ -296,6 +297,28 @@ async def answer_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[str
             emitted.add(marker_id)
             writer({"event": "citation", "payload": citation})
 
+    cache = runtime.cache
+    cache_key = (
+        answer_cache_key(
+            str(state.get("index_version") or runtime.settings.rag_index_version), question
+        )
+        if cache is not None and citations and runtime.settings.answer_cache_enabled
+        else None
+    )
+    if cache is not None and cache_key is not None:
+        cached = await cache.get(cache_key)
+        if isinstance(cached, dict) and cached.get("answer"):
+            writer({"event": "delta", "payload": {"text": str(cached["answer"])}})
+            for item in cached.get("citations") or []:
+                if isinstance(item, dict):
+                    writer({"event": "citation", "payload": item})
+            degraded.append("answer:cache")
+            return {
+                "answer_stream": str(cached["answer"]),
+                "degraded": degraded,
+                "usage_tokens": 0,
+            }
+
     try:
         rendered = await runtime.prompts.render(
             "answer_rag",
@@ -347,8 +370,22 @@ async def answer_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[str
             }
         )
         answer = NO_ANSWER_TEXT
+    final_answer = redact_output(answer).text
+    if (
+        cache is not None
+        and cache_key is not None
+        and str(state.get("band") or "") != "fallback"
+        and has_citation(answer)
+    ):
+        await cache.set(
+            cache_key,
+            {
+                "answer": final_answer,
+                "citations": [item for item in citations if isinstance(item, dict)],
+            },
+        )
     return {
-        "answer_stream": redact_output(answer).text,
+        "answer_stream": final_answer,
         "degraded": degraded,
         "usage_tokens": usage_tokens,
     }
@@ -377,6 +414,39 @@ async def pending_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[st
 async def sse_out_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[str, Any]:
     """终态聚合：不再产生文本，只为图结构保留显式出口（便于后续加事件/落库）。"""
     return {}
+
+
+async def cache_probe_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[str, Any]:
+    """入口短路：问题级缓存命中时直接回放，连 router 都不跑。
+
+    只对"原句"命中生效（改写后的 query 不查缓存，避免把多轮上下文答成通用答案）。
+    """
+    cache = runtime.cache
+    question = state.get("user_query", "")
+    if cache is None or not question or not runtime.settings.answer_cache_enabled:
+        return {"cache_hit": False}
+    version = await runtime.active_index_version()
+    cached = await cache.get(answer_cache_key(version, question))
+    if not isinstance(cached, dict) or not cached.get("answer"):
+        return {"cache_hit": False}
+    writer = _writer()
+    writer({"event": "delta", "payload": {"text": str(cached["answer"])}})
+    for item in cached.get("citations") or []:
+        if isinstance(item, dict):
+            writer({"event": "citation", "payload": item})
+    return {
+        "cache_hit": True,
+        "answer_stream": str(cached["answer"]),
+        "intent": str(Intent.QA),
+        "band": "answer",
+        "degraded": [*list(state.get("degraded", [])), "answer:cache"],
+        "usage_tokens": 0,
+        "rewritten_query": question,
+    }
+
+
+def route_after_cache(state: AfterSalesState) -> str:
+    return "sse_out" if state.get("cache_hit") else "router"
 
 
 def route_after_router(state: AfterSalesState) -> str:
