@@ -14,5 +14,5 @@
 | M2-07 | API 接线（apply/detail/cancel/approval/orders） | M2-06 | **DOING** | 五个端点已接线；错误码/鉴权 7 例接口测试通过 |
 | M2-08 | 图接入（after_sales 意图 → 双确认 → 状态机 → 挂起/恢复） | M2-07 | **DONE** | `intake`/`query_status` 节点；两轮 confirm（token 落 session）；pending_action 跨轮恢复；3 例图测试 |
 | M2-09 | outbox dispatcher + 消费者幂等 | M2-06 | **DONE** | 轮询投递 + 指数退避 + 死信；消费者 Redis NX 去重 + 标记 consumed |
-| M2-10 | 评测/回归 + CI MySQL 办事链路 job | M2-09 | TODO | 本机无 MySQL；下一轮加 service job + 并发/迁移/回调幂等用例 |
+| M2-10 | 评测/回归 + CI MySQL 办事链路 job | M2-09 | **DOING** | 并发幂等/迁移/版本冲突/回调幂等/拒绝恢复 5 例 + `aftersales-mysql` job 已加；待 CI 实跑验证 |
 | M2-11 | 文档收尾（接口示例/runbook/交接） | M2-10 | TODO | 最后一轮 |

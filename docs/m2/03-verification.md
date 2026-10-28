@@ -71,3 +71,27 @@
 | 图的两轮确认走真实 API（含 SSE confirm 事件） | 需要 DB + Redis 完整链路 | M2-10 |
 | 审批通过后的下一轮状态回溯 | 同上 | M2-10 |
 
+
+## 第 3 天（2026-10-28）：MySQL 集成用例 + CI job
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `ruff check .` / `ruff format --check .` | ✅ 172 文件 |
+| 2 | `mypy app` | ✅ 98 source files |
+| 3 | `pytest -q --cov=app` | ✅ **559 passed, 15 skipped，81.01%** |
+| 4 | `pytest -m mysql`（本地无 DB） | ⏭ 5 skipped（按设计；CI 提供 MySQL） |
+
+### 新增
+
+- `tests/integration/test_aftersales_mysql.py`：
+  1. 并发 10 次同幂等键 → 1 张单据；
+  2. 重放同参同结果 / 异参 `AS-4004`；
+  3. 非法迁移 + 陈旧版本冲突 → `AS-4003`；
+  4. 审批回调重复 → `duplicated=True` 且状态不变；
+  5. 驳回后 `get` 读己之写为 `REJECTED`。
+- `app/services/aftersales.py`：并发下捕获 `IntegrityError` → 重读重放（DB 唯一键是最终仲裁）。
+- CI 新增 `aftersales-mysql` job（MySQL 8 service + `pytest -m mysql`）。
+
+### 待 CI 确认
+
+MySQL job 是否全绿（并发/迁移/审批/恢复）；若失败，按日志修（本机无 MySQL，无法预跑）。

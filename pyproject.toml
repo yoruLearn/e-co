@@ -65,6 +65,7 @@ markers = [
   "integration_llm: 需要真实 LLM 网关与 key（默认跳过）",
   "local_embed: 需要本地 fastembed 模型（默认跳过，`RUN_LOCAL_EMBED=1` 开启）",
   "integration_redis: 需要真实 Redis（CI 的 RAG job 提供）",
+  "mysql: 需要真实 MySQL（CI 的 aftersales-mysql job 提供）",
 ]
 filterwarnings = [
   "error::DeprecationWarning:app.*",

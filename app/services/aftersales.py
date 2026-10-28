@@ -20,6 +20,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.errors import AppError, ErrorCode, IdempotencyConflictError
@@ -91,6 +92,32 @@ class AfterSalesService:
         self._settings = settings
 
     async def apply(self, cmd: ApplyCommand) -> ApplyOutcome:
+        """幂等受理；并发下 DB 唯一键是最终仲裁，冲突后重读重放。"""
+        try:
+            return await self._apply_once(cmd)
+        except IntegrityError:
+            existing = await self._find_by_idem(cmd.idem_key)
+            if existing is None:
+                raise
+            if not _same_params(existing, cmd):
+                raise IdempotencyConflictError(
+                    cmd.idem_key, detail={"biz_id": existing.biz_id}
+                ) from None
+            return ApplyOutcome(
+                biz_id=existing.biz_id,
+                status=existing.status,
+                approval_required=existing.status == str(AfterSalesStatus.PENDING_APPROVAL),
+                task_id=None,
+            )
+
+    async def _find_by_idem(self, idem_key: str) -> AfterSalesBiz | None:
+        async with self._sessions() as session:
+            row = await session.scalar(
+                select(AfterSalesBiz).where(AfterSalesBiz.idem_key == idem_key)
+            )
+        return row
+
+    async def _apply_once(self, cmd: ApplyCommand) -> ApplyOutcome:
         async with self._sessions() as session, session.begin():
             existing = await session.scalar(
                 select(AfterSalesBiz).where(AfterSalesBiz.idem_key == cmd.idem_key)

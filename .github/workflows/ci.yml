@@ -198,6 +198,35 @@ jobs:
       - name: downgrade base（可回退性）
         run: uv run alembic downgrade base
 
+  aftersales-mysql:
+    name: aftersales MySQL integration (idempotency/transition/approval)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: aftersales
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      MYSQL_TESTS_URL: mysql+aiomysql://root:root@127.0.0.1:3306/aftersales
+      LOG_LEVEL: ERROR
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.x"
+          enable-cache: true
+      - run: uv sync --extra dev
+      - name: mysql integration (concurrency/transition/approval)
+        run: uv run pytest -m mysql -q
+
   rag-integration:
     name: RAG 端到端（MySQL 8 + Chroma）
     runs-on: ubuntu-latest
