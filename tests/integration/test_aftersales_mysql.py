@@ -10,6 +10,7 @@ import os
 from collections.abc import AsyncIterator
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -28,10 +29,10 @@ pytestmark = [
 ]
 
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     assert MYSQL_URL
-    engine = create_async_engine(MYSQL_URL, pool_pre_ping=True)
+    engine = create_async_engine(MYSQL_URL, pool_pre_ping=True, pool_size=20, max_overflow=10)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
