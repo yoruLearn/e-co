@@ -1,0 +1,58 @@
+groups:
+  - name: e-co-slo
+    interval: 30s
+    rules:
+      # ---- 可用性 / 延迟（28 天窗口） ----
+      - record: slo:http_availability:ratio_28d
+        expr: |
+          sum(rate(http_requests_total{status!~"5.."}[28d]))
+          /
+          clamp_min(sum(rate(http_requests_total[28d])), 1e-9)
+      - record: slo:chat_latency_p95:28d
+        expr: histogram_quantile(0.95, sum(rate(chat_latency_seconds_bucket[28d])) by (le))
+      - record: slo:chat_first_token_p95_cached:28d
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(chat_first_token_seconds_bucket{mode="fallback"}[28d])) by (le)
+          )
+
+      # ---- 错误预算燃烧率（1h/6h 双窗口） ----
+      - alert: SloErrorBudgetFastBurn
+        expr: |
+          (1 - slo:http_availability:ratio_28d) > (14.4 * 0.001)
+        for: 5m
+        labels: {severity: critical, team: e-co}
+        annotations:
+          summary: "错误预算 1h 燃烧率过高（可用性 SLO 99.9%）"
+          runbook: "docs/m4/03-drills.md#错误预算燃烧"
+      - alert: SloLatencyBudgetBurn
+        expr: slo:chat_latency_p95:28d > 1.5
+        for: 10m
+        labels: {severity: warning, team: e-co}
+        annotations:
+          summary: "对话端到端 P95 超过 1.5s（缓存命中口径）"
+          runbook: "docs/runbook.md#延迟"
+
+      # ---- 业务红线 ----
+      - alert: AnswerWithoutCitation
+        expr: increase(answer_without_citation_total[5m]) > 0
+        for: 1m
+        labels: {severity: critical, team: e-co}
+        annotations:
+          summary: "出现无引用直出（G2 红线）"
+          runbook: "docs/runbook.md#引用"
+      - alert: WriteChainBreakerOpen
+        expr: increase(http_requests_total{status="503", path=~".*/aftersales/.*"}[5m]) > 5
+        for: 5m
+        labels: {severity: critical, team: e-co}
+        annotations:
+          summary: "写链路 503 增多，可能触发熔断/依赖故障"
+          runbook: "docs/runbook.md#熔断"
+      - alert: OutboxDeadLetter
+        expr: increase(dlq_total[10m]) > 0
+        for: 1m
+        labels: {severity: critical, team: e-co}
+        annotations:
+          summary: "出现死信消息"
+          runbook: "docs/runbook.md#outbox"
