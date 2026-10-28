@@ -110,14 +110,14 @@ async def test_illegal_transition_and_version_conflict(
         assert exc.value.code == "AS-4003"
 
     async with session_factory() as session:
-        stale_a = await session.scalar(
-            select(AfterSalesBiz).where(AfterSalesBiz.biz_id == outcome.biz_id)
-        )
-        stale_b = await session.scalar(
-            select(AfterSalesBiz).where(AfterSalesBiz.biz_id == outcome.biz_id)
-        )
-        assert stale_a is not None and stale_b is not None
         async with session.begin():
+            stale_a = await session.scalar(
+                select(AfterSalesBiz).where(AfterSalesBiz.biz_id == outcome.biz_id)
+            )
+            stale_b = await session.scalar(
+                select(AfterSalesBiz).where(AfterSalesBiz.biz_id == outcome.biz_id)
+            )
+            assert stale_a is not None and stale_b is not None
             await transition_biz(
                 session, stale_a, AfterSalesEvent.COMPLETE, actor="worker", trace_id="tr"
             )
