@@ -27,6 +27,11 @@ from app.db.models import IndexVersion
 from app.llm.base import ChatModel, EmbeddingModel
 from app.llm.factory import build_chat_model, build_embedding
 from app.prompt.registry import PromptRegistry
+from app.rag.answerability import (
+    AlwaysAnswerableChecker,
+    AnswerabilityChecker,
+    LlmAnswerabilityChecker,
+)
 from app.rag.chroma import ChromaVectorIndex, VectorHit
 from app.rag.chunker import collection_name
 from app.rag.keyword import EmptyKeywordIndex, KeywordIndex, MysqlKeywordIndex
@@ -53,6 +58,7 @@ class AgentRuntime:
     sse_buffer: SseBuffer = field(default_factory=lambda: SseBuffer(None))
     cache: TwoLevelCache | None = None
     trace: TraceRecorder | NullTraceRecorder = field(default_factory=NullTraceRecorder)
+    answerability: AnswerabilityChecker = field(default_factory=AlwaysAnswerableChecker)
     _collection_cache: dict[str, str] = field(default_factory=dict)
     _last_index_version: str | None = None
 
@@ -168,6 +174,11 @@ def build_agent_runtime(settings: Settings, clients: AppClients) -> AgentRuntime
         ),
         cache=cache,
         trace=TraceRecorder(clients.session_factory),
+        answerability=(
+            LlmAnswerabilityChecker(chat, prompts)
+            if settings.rag_answerability_enabled
+            else AlwaysAnswerableChecker()
+        ),
     )
     runtime.graph = build_graph(runtime)
     return runtime

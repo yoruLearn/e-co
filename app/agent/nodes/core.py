@@ -250,10 +250,25 @@ async def retrieve_node(runtime: AgentRuntime, state: AfterSalesState) -> dict[s
             "index_version": version,
         }
     hits = result.hits
+    band = str(result.band)
+    if (
+        hits
+        and band != "fallback"
+        and runtime.settings.rag_answerability_enabled
+        and result.top1_score < runtime.settings.rag_answerability_threshold
+    ):
+        answerable = await runtime.answerability.is_answerable(
+            question=query, passages=[hit.content for hit in hits[:3]]
+        )
+        if answerable is False:
+            band = "fallback"
+            degraded.append("answerability:no")
+        elif answerable is None:
+            degraded.append("answerability:unknown")
     return {
         "citations": [citation.model_dump() for citation in to_citations(hits)],
         "context_blocks": build_context_blocks(hits),
-        "band": str(result.band),
+        "band": band,
         "degraded": degraded + list(result.degraded),
         "index_version": version,
         "rewritten_query": query,

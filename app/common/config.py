@@ -125,6 +125,8 @@ class Settings(BaseSettings):
     rag_top_k_final: int = Field(default=5, ge=1, le=50)
     rag_rrf_k: int = Field(default=60, ge=1, le=1000)
     rag_index_version: str = "v1"
+    rag_answerability_enabled: bool = True
+    rag_answerability_threshold: float = Field(default=0.65, ge=0.0, le=1.0)
     rag_offline: bool = False
     rerank_provider: Literal["none", "llm"] = "none"
     keyword_backend: Literal["mysql", "memory"] = "mysql"

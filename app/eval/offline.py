@@ -19,6 +19,7 @@ from app.agent.runtime import AgentRuntime
 from app.common.config import Settings
 from app.llm.factory import build_chat_model, build_embedding
 from app.prompt.registry import PromptRegistry, SeedPromptSource
+from app.rag.answerability import AlwaysAnswerableChecker, LlmAnswerabilityChecker
 from app.rag.chroma import InMemoryVectorIndex
 from app.rag.chunker import collection_name, load_corpus
 from app.rag.keyword import KeywordDocument, MemoryBM25KeywordIndex, chunk_id_of
@@ -84,16 +85,23 @@ async def build_offline_runtime(
         reranker=NoopReranker(),
         cache=None,
     )
+    chat = build_chat_model(settings)
+    prompts = PromptRegistry([SeedPromptSource(Path(settings.prompt_seed_path))])
     runtime = AgentRuntime(
         settings=settings,
-        chat=build_chat_model(settings),
+        chat=chat,
         embedding=embedding,
-        prompts=PromptRegistry([SeedPromptSource(Path(settings.prompt_seed_path))]),
+        prompts=prompts,
         retriever=retriever,
         vector_index=vector_index,  # type: ignore[arg-type]
         checkpointer=InMemorySaver(),
         session_store=NullSessionStore(),  # type: ignore[arg-type]
         clients=None,
+        answerability=(
+            LlmAnswerabilityChecker(chat, prompts)
+            if settings.rag_answerability_enabled
+            else AlwaysAnswerableChecker()
+        ),
     )
     runtime.graph = build_graph(runtime)
     return runtime

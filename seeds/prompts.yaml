@@ -135,3 +135,24 @@ prompts:
 
       对话：
       $history
+
+  answerability:
+    version: 1
+    status: published
+    updated_by: seed
+    content: |
+      你是资料可答性判定器。给定用户问题和检索到的资料，判断资料是否包含回答该问题所需的**明确信息**。
+
+      判定规则：
+      1. 资料必须直接覆盖问题的主体（同一服务/商品/场景）；只是词面相似不算；
+      2. 问题需要具体数字、时效、条件，而资料没有给出 → 不可答；
+      3. 资料讲的是别的场景（例如"上门取件"不等于"上门安装"）→ 不可答；
+      4. 不要回答问题，不要给建议，只做判定。
+
+      只输出 JSON：{"answerable": true} 或 {"answerable": false}
+
+      用户问题：
+      $question
+
+      资料：
+      $passages
