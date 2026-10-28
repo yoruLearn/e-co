@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 1 | `ruff check .` / `ruff format --check .` | ✅ 148 文件 |
 | 2 | `mypy app`（strict） | ✅ 87 source files |
-| 3 | `pytest -q --cov=app` | ✅ **501 passed, 10 skipped，83.39%** |
+| 3 | `pytest -q --cov=app` | ✅ **498 passed, 10 skipped，83.13%** |
 | 4 | `pytest tests/integration/test_traces_api.py tests/integration/test_trace_spans.py` | ✅ 7 例（span 落库/接口/角色/404/图节点全覆盖） |
 | 5 | **`python -m app.eval.cli run --offline`（真实 DeepSeek + bge，90 条）** | ✅ **85/90（94.44%）**，引用 100%，P95 4647ms，门禁通过 |
 
